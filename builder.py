@@ -97,7 +97,8 @@ def print_banner():
     print("       WELCOME TO INDIGRADER LAB BUILDER (Pre-Lab)")
     print("=" * 60)
     print("Before we begin, ensure you have your testcases ready.")
-    print("See docs/setup_guide.md for naming conventions.")
+    print("See docs/setup_guide.md for naming conventions:")
+    print("https://github.com/skt09/IndiGrader/blob/main/docs/setup_guide.md")
     print("=" * 60 + RESET)
     resp = input(YELLOW + "Press [ENTER] to continue, or type 'q' to quit: " + RESET).strip().lower()
     if resp in ['q', 'quit', 'exit']:

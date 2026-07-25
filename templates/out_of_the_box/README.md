@@ -32,15 +32,43 @@ pip install -r requirements.txt
 2. **`pwd_students.txt`**: Add the roll numbers of Persons with Disabilities (PwD) students to this file, one per line. This grants them an exemption from the standard lab `end_time` deadline.
 
 ## 4. Preparing the Test Cases
-IndiGrader supports up to 100 test cases per question, numbered `00` to `99` (e.g., `input00.txt`, `input99.txt`). 
+
+> [!TIP]
+> **Recommended Workflow (Using `builder.py`):** It is highly recommended to use the `builder.py` script at the root of the IndiGrader repository to automatically scaffold this entire structure from raw materials.
+> 
+> **Important for TAs/Instructors:** If you are preparing raw testcases to be processed by `builder.py`, **do not** try to mimic the complex `statics/testlab/testcases/` structure shown below. You only need to provide simple `public/` and `private/` folders containing your test cases, and `builder.py` will automatically generate this server-ready structure for you. See [`docs/setup_guide.md`](../../docs/setup_guide.md) for the correct raw material format.
+
+> [!WARNING]
+> The server-ready structure shown below applies **only** if you are manually configuring the server environment without using `builder.py`.
+
+If you are manually configuring this template, you must manually organize your testcases. IndiGrader supports up to 100 test cases per question, numbered `00` to `99` (e.g., `input00.txt`, `input99.txt`). 
 
 > [!NOTE]
 > **Weightage:** All test cases carry equal weightage. If you want a specific scenario to carry more weight, duplicate that test case.
 
 **Public vs. Private Test Cases:**
-There are two distinct and independent testcase directories:
-1. **Server-Side (`testcases/`):** Contains the test cases used for final grading. These are typically hidden private cases.
-2. **Student-Side (`statics/testlab/testcases/`):** Contains only the *public* test cases for local verification.
+There are two distinct and independent testcase directories. Inside each question's folder (e.g., `Q1/`), you **must** separate your files into `input/` and `output/` subdirectories:
+1. **Server-Side (`testcases/<Question>/`):** Contains the test cases used for final grading. These are typically hidden private cases.
+2. **Student-Side (`statics/testlab/testcases/<Question>/`):** Contains only the *public* test cases for local verification.
+
+**Example Directory Structure:**
+```text
+out_of_the_box/
+├── testcases/
+│   └── Q1/
+│       ├── input/
+│       │   └── input02.txt
+│       └── output/
+│           └── output02.txt
+└── statics/
+    └── testlab/
+        └── testcases/
+            └── Q1/
+                ├── input/
+                │   └── input01.txt
+                └── output/
+                    └── output01.txt
+```
 
 ### Input Modes
 IndiGrader detects how to execute a student's program based on the naming and structure inside the `input/` directory.
