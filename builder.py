@@ -323,17 +323,21 @@ def main():
         q_name = f"Q{i}"
         print(CYAN + f"\n--- Configuring {q_name} ---" + RESET)
         
-        full_marks = float(input(CYAN + f"Full Marks for {q_name}: " + RESET).strip() or "100")
-        timeout = float(input(CYAN + f"Timeout (seconds) for {q_name}: " + RESET).strip() or "5")
-        mem_cap = int(input(CYAN + f"Memory Cap (MB) for {q_name}: " + RESET).strip() or "512")
+        full_marks = float(input(CYAN + f"Full Marks for {q_name} [100]: " + RESET).strip() or "100")
+        timeout = float(input(CYAN + f"Timeout (seconds) for {q_name} [5]: " + RESET).strip() or "5")
+        mem_cap = int(input(CYAN + f"Memory Cap (MB) for {q_name} [512]: " + RESET).strip() or "512")
         
         is_makefile = input(CYAN + f"Does {q_name} use a Makefile? (y/N): " + RESET).strip().lower() == 'y'
+        
+        target_name = q_name
+        if is_makefile:
+            target_name = input(CYAN + f"Enter the target/executable name built by the Makefile for {q_name} [{q_name}]: " + RESET).strip() or q_name
         
         print(CYAN + "Input Modes:")
         print("  1. Stdin-Only (input##.txt)")
         print("  2. Arg-Only (args##.txt)")
         print("  3. Hybrid/Directory (input##/ directory containing args.txt, stdin.txt, files)" + RESET)
-        mode_str = input(CYAN + "Select mode (1/2/3): " + RESET).strip()
+        mode_str = input(CYAN + "Select mode (1/2/3) [1]: " + RESET).strip()
         mode = int(mode_str) if mode_str in ['1', '2', '3'] else 1
         
         while True:
@@ -365,6 +369,7 @@ def main():
             "static_folder": static_folder,
             "starter": starter_code,
             "is_makefile": is_makefile,
+            "target_name": target_name,
             "mode": mode,
             "ext": ext
         }
@@ -416,7 +421,7 @@ def main():
             "ext": questions_config[q_name]["ext"]
         }
         if questions_config[q_name]["is_makefile"]:
-            config[q_name]["executable_name"] = q_name
+            config[q_name]["executable_name"] = questions_config[q_name]["target_name"]
         
     with open(config_path, "w") as f:
         json.dump(config, f, indent=4)
@@ -490,8 +495,9 @@ def main():
                 shutil.copytree(conf["starter"], q_folder)
             else:
                 os.makedirs(q_folder, exist_ok=True)
+                target = conf.get("target_name", q_name)
                 with open(os.path.join(q_folder, "Makefile"), "w") as f:
-                    f.write(f"all:\n\tgcc -o {q_name} main.c\n")
+                    f.write(f"all:\n\tgcc -o {target} main.c\n")
                 with open(os.path.join(q_folder, "main.c"), "w") as f:
                     f.write("#include <stdio.h>\n\nint main() {\n    // Code here\n    return 0;\n}\n")
         else:
