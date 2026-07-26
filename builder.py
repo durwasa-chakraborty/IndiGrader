@@ -114,12 +114,12 @@ def validate_testcases(tc_path, mode):
         return False
     
     # Check if they already provided input/ and output/ folders
-    has_input_dir = os.path.isdir(os.path.join(tc_path, "input"))
-    has_output_dir = os.path.isdir(os.path.join(tc_path, "output"))
+    has_input_dir = os.path.isdir(os.path.join(tc_path, "input")) or os.path.isdir(os.path.join(tc_path, "inputs"))
+    has_output_dir = os.path.isdir(os.path.join(tc_path, "output")) or os.path.isdir(os.path.join(tc_path, "outputs"))
     
     if has_input_dir and has_output_dir:
-        in_path = os.path.join(tc_path, "input")
-        out_path = os.path.join(tc_path, "output")
+        in_path = os.path.join(tc_path, "input") if os.path.isdir(os.path.join(tc_path, "input")) else os.path.join(tc_path, "inputs")
+        out_path = os.path.join(tc_path, "output") if os.path.isdir(os.path.join(tc_path, "output")) else os.path.join(tc_path, "outputs")
         in_files_list = os.listdir(in_path)
         out_files_list = os.listdir(out_path)
     else:
@@ -180,19 +180,22 @@ def copy_testcases_to_engine(src_folder, dest_root_folder, mode):
     out_dir = os.path.join(dest_root_folder, "output")
     os.makedirs(in_dir, exist_ok=True)
     os.makedirs(out_dir, exist_ok=True)
-    has_input_dir = os.path.isdir(os.path.join(src_folder, "input"))
-    has_output_dir = os.path.isdir(os.path.join(src_folder, "output"))
+    has_input_dir = os.path.isdir(os.path.join(src_folder, "input")) or os.path.isdir(os.path.join(src_folder, "inputs"))
+    has_output_dir = os.path.isdir(os.path.join(src_folder, "output")) or os.path.isdir(os.path.join(src_folder, "outputs"))
     
     if has_input_dir and has_output_dir:
-        for f in os.listdir(os.path.join(src_folder, "input")):
-            src_item = os.path.join(src_folder, "input", f)
+        src_in_dir = "input" if os.path.isdir(os.path.join(src_folder, "input")) else "inputs"
+        src_out_dir = "output" if os.path.isdir(os.path.join(src_folder, "output")) else "outputs"
+        
+        for f in os.listdir(os.path.join(src_folder, src_in_dir)):
+            src_item = os.path.join(src_folder, src_in_dir, f)
             if os.path.isdir(src_item):
                 shutil.copytree(src_item, os.path.join(in_dir, f))
             else:
                 shutil.copy2(src_item, os.path.join(in_dir, f))
                 
-        for f in os.listdir(os.path.join(src_folder, "output")):
-            src_item = os.path.join(src_folder, "output", f)
+        for f in os.listdir(os.path.join(src_folder, src_out_dir)):
+            src_item = os.path.join(src_folder, src_out_dir, f)
             if os.path.isdir(src_item):
                 shutil.copytree(src_item, os.path.join(out_dir, f))
             else:
@@ -536,13 +539,15 @@ def main():
     os.makedirs(labs_dir, exist_ok=True)
     
     zip_filepath = os.path.join(labs_dir, zip_filename)
-    shutil.make_archive(zip_filepath, 'zip', STAGING_DIR)
     
     # Instead of deleting, rename staging dir to the package name inside Labs
     final_dir = os.path.join(labs_dir, zip_filename)
     if os.path.exists(final_dir):
         shutil.rmtree(final_dir)
     os.rename(STAGING_DIR, final_dir)
+
+    # Make archive from final_dir to preserve folder structure in zip
+    shutil.make_archive(zip_filepath, 'zip', root_dir=labs_dir, base_dir=zip_filename)
 
     print(GREEN + f"\n[+] Success! {zip_filename}.zip and {zip_filename}/ folder have been generated in Labs/." + RESET)
     print(CYAN + "[*] You can inspect the folder for last minute checks, and transfer the zip to the lab server." + RESET)

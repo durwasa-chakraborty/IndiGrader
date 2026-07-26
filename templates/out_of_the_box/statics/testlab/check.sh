@@ -19,6 +19,18 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# Dependencies
+if ! command -v jq &> /dev/null; then
+    echo -e "${RED}ERROR: 'jq' is not installed. Please install it to continue.${NC}"
+    echo "Installation example:"
+    echo "  - Ubuntu/Debian: sudo apt-get install jq"
+    exit 1
+fi
+
+if [ ! -x /usr/bin/time ]; then
+    echo -e "${YELLOW}WARNING: '/usr/bin/time' is not installed. Execution time measurement will be disabled.${NC}"
+fi
+
 # Evaluation loop
 grade_student() {
     local student_dir=$1

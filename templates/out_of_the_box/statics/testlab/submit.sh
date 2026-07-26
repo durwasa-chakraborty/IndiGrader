@@ -52,6 +52,11 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
+if ! command -v tar &> /dev/null; then
+    echo -e "${RED}ERROR: 'tar' is not installed. Please install it to continue.${NC}"
+    exit 1
+fi
+
 # Submit payload
 process_question() {
     local Q_NO_NUM=$1

@@ -38,6 +38,7 @@ if [[ ":\$PATH:" != *":\$HOME/.local/bin:"* ]]; then
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
     export PATH="$HOME/.local/bin:$PATH"
     echo -e "\033[1;33mAdded ~/.local/bin to PATH in ~/.bashrc\033[0m"
+    source ~/.bashrc
 fi
 
 echo -e "\033[1;32mSetup Complete.\033[0m To fetch your first lab, run: \033[1;36m$COURSE_ID <lab_name>\033[0m"

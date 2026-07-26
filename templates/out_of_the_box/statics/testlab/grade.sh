@@ -185,7 +185,11 @@ run_standard() {
     # Enforce memory limit and measure time
     (
         ulimit -v "$((MEM_CAP_MB * 1024))"
-        /usr/bin/time -f "%e" -o "time.txt" timeout "${TIMEOUT_SEC}s" "${CMD[@]}" "${EXTRA_ARGS[@]}" < "$stdin_file" > "stdout.txt" 2> "stderr.txt"
+        if [ -x /usr/bin/time ]; then
+            /usr/bin/time -f "%e" -o "time.txt" timeout "${TIMEOUT_SEC}s" "${CMD[@]}" "${EXTRA_ARGS[@]}" < "$stdin_file" > "stdout.txt" 2> "stderr.txt"
+        else
+            timeout "${TIMEOUT_SEC}s" "${CMD[@]}" "${EXTRA_ARGS[@]}" < "$stdin_file" > "stdout.txt" 2> "stderr.txt"
+        fi
     )
     local exit_code=$?
     local exec_time=""
