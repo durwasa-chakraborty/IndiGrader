@@ -218,13 +218,12 @@ def get_path_input(prompt_text, is_dir=False, allow_blank=False, default_val="")
         default_hint = f" [{default_val}]" if default_val else ""
         user_input = input(CYAN + f"{prompt_text}{default_hint}{blank_hint}{browse_hint}: " + RESET).strip()
         
+        path_to_check = None
         if not user_input and default_val:
-            return default_val
-            
-        if allow_blank and user_input == "":
+            path_to_check = default_val
+        elif allow_blank and user_input == "":
             return ""
-            
-        if FILE_PICKER and user_input.lower() in ['b', 'browse']:
+        elif FILE_PICKER and user_input.lower() in ['b', 'browse']:
             path = _native_browse(prompt_text, is_dir=is_dir)
             if path:
                 print(GREEN + f"[*] Selected: {path}" + RESET)
@@ -232,9 +231,14 @@ def get_path_input(prompt_text, is_dir=False, allow_blank=False, default_val="")
             else:
                 print(YELLOW + "[-] Browse cancelled. Please type the path or try again." + RESET)
                 continue
-                
-        if user_input:
-            return user_input
+        elif user_input:
+            path_to_check = user_input
+            
+        if path_to_check is not None:
+            if os.path.exists(path_to_check):
+                return path_to_check
+            else:
+                print(RED + f"[-] ERROR: Path '{path_to_check}' does not exist. Please try again." + RESET)
 
 def main():
     if not os.path.exists(TEMPLATE_DIR):
