@@ -36,11 +36,11 @@ if [ "$COMMAND" == "fetch" ]; then
     SERVER_URL=$(cat "$CONFIG_FILE")
     
     ROLL_NO=""
-    if [[ "$USER" =~ ^[a-zA-Z]{2}[0-9]{2}[a-zA-Z]{1}[0-9]{3}$ ]]; then
+    if [[ "$USER" =~ ^([a-zA-Z]{2}[0-9]{2}[a-zA-Z]{1}[0-9]{3}|[0-9]{2}[a-zA-Z]{1,2}[0-9]{6,8})$ ]]; then
         ROLL_NO="$USER"
         echo -e "\033[1;36mDetected Roll Number: $ROLL_NO\033[0m"
     else
-        read -p "Enter your Roll Number (e.g. CS25B012): " ROLL_NO
+        read -p "Enter your Roll Number (e.g. CS25B012 or 22F3002460): " ROLL_NO
     fi
     
     # Capitalize it
@@ -175,7 +175,7 @@ if [ "$COMMAND" == "rebind" ]; then
     TMP_DIR="$PWD"
     while [ "$TMP_DIR" != "$COURSE_DIR" ] && [ "$TMP_DIR" != "/" ]; do
         dir_name=$(basename "$TMP_DIR")
-        if [[ "$dir_name" =~ ^[a-zA-Z]{2}[0-9]{2}[a-zA-Z]{1}[0-9]{3}$ ]]; then
+        if [[ "$dir_name" =~ ^([a-zA-Z]{2}[0-9]{2}[a-zA-Z]{1}[0-9]{3}|[0-9]{2}[a-zA-Z]{1,2}[0-9]{6,8})$ ]]; then
             ROLL_NO=$(echo "$dir_name" | tr '[:lower:]' '[:upper:]')
             break
         fi
@@ -186,7 +186,7 @@ if [ "$COMMAND" == "rebind" ]; then
     if [ -z "$ROLL_NO" ]; then
         for dir in "$COURSE_DIR"/*/; do
             dir_name=$(basename "$dir")
-            if [[ "$dir_name" =~ ^[a-zA-Z]{2}[0-9]{2}[a-zA-Z]{1}[0-9]{3}$ ]]; then
+            if [[ "$dir_name" =~ ^([a-zA-Z]{2}[0-9]{2}[a-zA-Z]{1}[0-9]{3}|[0-9]{2}[a-zA-Z]{1,2}[0-9]{6,8})$ ]]; then
                 ROLL_NO=$(echo "$dir_name" | tr '[:lower:]' '[:upper:]')
                 break
             fi

@@ -156,7 +156,7 @@ async def starter_kit(request: Request, roll_no: str):
     client_ip = request.client.host # type: ignore
     capitalized_roll_no = roll_no.upper()
 
-    if roll_no not in student_list:
+    if capitalized_roll_no not in student_list and roll_no not in student_list:
         return JSONResponse({
             "response" : "YOU ARE NOT REGISTERED!!!"
         })

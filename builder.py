@@ -273,7 +273,8 @@ def main():
     server_ip = input(CYAN + f"Enter Lab Server IP [{def_ip}]: " + RESET).strip() or def_ip
     
     def_sub = profile.get("subnet", "127.0.0.")
-    subnet = input(CYAN + f"Enter Allowed Subnet [{def_sub}]: " + RESET).strip() or def_sub
+    subnet_str = input(CYAN + f"Enter Allowed Subnets (comma-separated) [{def_sub}]: " + RESET).strip() or def_sub
+    allowed_subnets = [s.strip() for s in subnet_str.split(",") if s.strip()]
     
     default_date = datetime.now().strftime("%Y-%m-%d")
     date_str = input(CYAN + f"Enter Date (YYYY-MM-DD) [{default_date}]: " + RESET).strip() or default_date
@@ -306,7 +307,7 @@ def main():
     profile.update({
         "lab_name": lab_name,
         "server_ip": server_ip,
-        "subnet": subnet,
+        "subnet": subnet_str,
         "start_time": start_time,
         "duration_mins": str(duration_mins),
         "pwd_extra": str(pwd_extra),
@@ -410,7 +411,7 @@ def main():
     config["lab_name"] = lab_name
     config["start_time"] = start_dt.isoformat()
     config["end_time"] = end_dt.isoformat()
-    config["allowed_subnets"] = [subnet]
+    config["allowed_subnets"] = allowed_subnets
     config["questions"] = [f"Q{i}" for i in range(1, num_q + 1)]
     
     for i in range(1, num_q + 1):

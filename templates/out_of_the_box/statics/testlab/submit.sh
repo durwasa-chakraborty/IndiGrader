@@ -18,14 +18,14 @@ total_obtained_marks=0
 ROLL_NO=""
 for dir in */; do
     dir_name=$(basename "$dir")
-    if [[ "$dir_name" =~ ^[a-zA-Z]{2}[0-9]{2}[a-zA-Z]{1}[0-9]{3}$ ]]; then
+    if [[ "$dir_name" =~ ^([a-zA-Z]{2}[0-9]{2}[a-zA-Z]{1}[0-9]{3}|[0-9]{2}[a-zA-Z]{1,2}[0-9]{6,8})$ ]]; then
         ROLL_NO=$(echo "$dir_name" | tr '[:lower:]' '[:upper:]')
         break
     fi
 done
 
 if [ -z "$ROLL_NO" ]; then
-    echo -e "\033[0;31mERROR: Could not find a valid Roll Number directory (e.g. CS25B012).\033[0m"
+    echo -e "\033[0;31mERROR: Could not find a valid Roll Number directory (e.g. CS25B012 or 22F3002460).\033[0m"
     echo "Make sure your code is inside a folder named with your roll number."
     exit 1
 fi
