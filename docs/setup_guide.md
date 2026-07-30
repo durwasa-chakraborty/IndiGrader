@@ -38,7 +38,7 @@ Before running the builder, you must prepare the raw files for your lab locally 
    ├── input/
    │   └── input01.txt
    └── output/
-   └── output01.txt
+       └── output01.txt
    ```
    
    **B. Arg-Only Mode**
@@ -48,7 +48,7 @@ Before running the builder, you must prepare the raw files for your lab locally 
    ├── input/
    │   └── args01.txt
    └── output/
-   └── output01.txt
+       └── output01.txt
    ```
    
    **C. Hybrid/Directory Mode (File IO & CLA)**
@@ -62,7 +62,7 @@ Before running the builder, you must prepare the raw files for your lab locally 
    │       ├── stdin.txt     (optional standard input)
    │       └── data.csv      (any extra files the student code needs to read)
    └── output/
-   └── output01.txt      <-- Flat file for the expected output
+       └── output01.txt      <-- Flat file for the expected output
    ```
 2. **Student Lists**: Keep a `students.txt` containing all roll numbers (e.g., `CS25B001, John Doe`).
 3. **PwD List**: Keep a `pwd_students.txt` containing the roll numbers of PwD students who receive extra time.
