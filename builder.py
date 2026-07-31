@@ -267,7 +267,17 @@ def main():
         print(GREEN + f"[*] Found saved profile for {course_id}. Press Enter to use saved defaults." + RESET)
 
     def_lab = profile.get("lab_name", "L1")
-    lab_name = input(CYAN + f"Enter Lab Name [{def_lab}]: " + RESET).strip().upper() or def_lab
+    while True:
+        lab_name = input(CYAN + f"Enter Lab Name [{def_lab}]: " + RESET).strip().upper() or def_lab
+        conflict_dir = os.path.join(ROOT_DIR, "Labs", f"packageIG_{lab_name}")
+        conflict_zip = os.path.join(ROOT_DIR, "Labs", f"packageIG_{lab_name}.zip")
+        if os.path.exists(conflict_dir) or os.path.exists(conflict_zip):
+            print(RED + f"[-] Conflict: packageIG_{lab_name} already exists in Labs/!" + RESET)
+            overwrite = input(YELLOW + "Do you want to overwrite it? (y/N): " + RESET).strip().lower()
+            if overwrite == 'y':
+                break
+        else:
+            break
     
     def_ip = profile.get("server_ip", "127.0.0.1")
     server_ip = input(CYAN + f"Enter Lab Server IP [{def_ip}]: " + RESET).strip() or def_ip
