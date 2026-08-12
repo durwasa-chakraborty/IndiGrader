@@ -13,6 +13,70 @@ RESET = '\033[0m'
 
 import subprocess
 import platform
+import glob
+
+try:
+    import readline
+except ImportError:  # Windows without pyreadline3
+    readline = None
+
+_IS_LIBEDIT = readline is not None and "libedit" in (getattr(readline, "__doc__", "") or "")
+
+def _rl_prompt(text):
+    """Wrap ANSI codes in readline's invisible-character markers so it can
+    compute the real prompt width (otherwise long lines wrap incorrectly).
+    libedit (macOS) doesn't use the \\001/\\002 convention and mangles the
+    escape codes if we send them, so it gets the plain colored prompt."""
+    if readline is None or _IS_LIBEDIT:
+        return CYAN + text + RESET
+    return "\001" + CYAN + "\002" + text + "\001" + RESET + "\002"
+
+def expand_path(path):
+    """Expand ~, $VARS and surrounding quotes/escapes into a usable path."""
+    path = path.strip()
+    if len(path) >= 2 and path[0] == path[-1] and path[0] in ("'", '"'):
+        path = path[1:-1]
+    else:
+        path = path.replace("\\ ", " ")
+    return os.path.expanduser(os.path.expandvars(path))
+
+def _path_completer(text, state):
+    """Tab-completion over the filesystem, tilde-aware."""
+    try:
+        expanded = expand_path(text)
+        # A bare "~" or "~/" should list the home directory, not match nothing.
+        matches = sorted(glob.glob(expanded + "*"))
+        results = []
+        for m in matches:
+            display = m
+            if text.startswith("~"):
+                home = os.path.expanduser("~")
+                if m.startswith(home):
+                    display = "~" + m[len(home):]
+            results.append(display + os.sep if os.path.isdir(m) else display)
+        return results[state] if state < len(results) else None
+    except Exception:
+        return None
+
+def _readline_enabled():
+    return readline is not None and sys.stdin.isatty()
+
+def _with_path_completion(enable):
+    """Turn filesystem tab-completion on/off around a path prompt."""
+    if readline is None or not _readline_enabled():
+        return
+    if enable:
+        # Empty delimiters => the whole line is one token, so paths containing
+        # spaces complete correctly.
+        readline.set_completer_delims("")
+        readline.set_completer(_path_completer)
+        # macOS ships libedit under the readline name; it needs a different bind.
+        if _IS_LIBEDIT:
+            readline.parse_and_bind("bind ^I rl_complete")
+        else:
+            readline.parse_and_bind("tab: complete")
+    else:
+        readline.set_completer(None)
 
 def _detect_file_picker():
     """Returns the available native file picker backend, or None."""
@@ -219,8 +283,15 @@ def get_path_input(prompt_text, is_dir=False, allow_blank=False, default_val="")
         browse_hint = " (type 'b' to browse)" if FILE_PICKER else ""
         blank_hint = " (leave blank to skip)" if allow_blank and not default_val else ""
         default_hint = f" [{default_val}]" if default_val else ""
-        user_input = input(CYAN + f"{prompt_text}{default_hint}{blank_hint}{browse_hint}: " + RESET).strip()
-        
+        tab_hint = " (TAB to complete)" if _readline_enabled() else ""
+        _with_path_completion(True)
+        try:
+            user_input = input(_rl_prompt(
+                f"{prompt_text}{default_hint}{blank_hint}{browse_hint}{tab_hint}: "
+            )).strip()
+        finally:
+            _with_path_completion(False)
+
         path_to_check = None
         if not user_input and default_val:
             path_to_check = default_val
@@ -236,10 +307,11 @@ def get_path_input(prompt_text, is_dir=False, allow_blank=False, default_val="")
                 continue
         elif user_input:
             path_to_check = user_input
-            
+
         if path_to_check is not None:
-            if os.path.exists(path_to_check):
-                return path_to_check
+            resolved = expand_path(path_to_check)
+            if os.path.exists(resolved):
+                return resolved
             else:
                 print(RED + f"[-] ERROR: Path '{path_to_check}' does not exist. Please try again." + RESET)
 
