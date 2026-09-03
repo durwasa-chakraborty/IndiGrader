@@ -13,7 +13,11 @@ This guide explains how to properly scaffold and deploy an IndiGrader lab enviro
 **For the Lab Server:**
 Ensure the machine where the lab will be hosted has the following installed:
 - Python 3.9+ (3.12+ recommended)
-- Redis Server (`sudo apt install redis-server`)
+- Redis, but **you do not need to install it system-wide**: `requirements.txt`
+  pulls in `redislite`, which drops a `redis-server` binary straight into your
+  virtualenv. `sudo apt install redis-server` still works if you prefer it, and a
+  system Redis is used in preference when present. To point at a broker on
+  another machine instead, set `IG_BROKER_URL` or `broker_url` in `config.json`.
 - Firejail (`sudo apt install firejail`)
 - jq (`sudo apt install jq`)
 
@@ -206,8 +210,19 @@ Instead, execute the shutdown script:
 ```
 **Functionality of `stop.sh`:**
 1. Terminates the FastAPI application to prevent new submissions.
-2. Continually monitors the Redis queue (displaying the remaining length on your terminal).
-3. Waits until the queue hits `0` (meaning all students have been graded).
-4. Safely sends a `SIGTERM` to the Celery workers to let them wrap up.
+2. Counts what is genuinely outstanding: work still in the broker **plus** what the
+   worker is running **plus** what it has prefetched. Celery prefetches
+   aggressively, so the broker queue empties within a second of a burst while the
+   worker still holds the tasks; counting the broker alone would call that
+   "drained" and throw the work away.
+3. Waits until all three are zero for several consecutive checks.
+4. Asks Celery to shut down over its own control channel rather than signalling
+   the processes, because `pkill -15 -f celery` also hits the forked pool children
+   and aborts whatever they are grading mid-task.
+5. Shuts down the Redis instance only if this package started it.
+
+If the workers are already gone while submissions are still queued, it refuses to
+declare success and tells you to start a worker and re-run it. It will not tell
+you it is safe to zip the folder when ungraded submissions remain.
 
 Once `stop.sh` says "Shutdown Complete!", it is safe to zip the folder and take it back to your local machine for post-lab processing (detailed in `post_lab_guide.md`).

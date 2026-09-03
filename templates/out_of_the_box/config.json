@@ -5,6 +5,7 @@
     "end_time": "<DUMMY_END_TIME>",
     "pwd_end_time": null,
     "admin_token": null,
+    "broker_url": null,
     "allowed_subnets": [
         "<DUMMY_SUBNET>"
     ],

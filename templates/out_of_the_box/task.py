@@ -9,10 +9,29 @@ from celery import Celery
 # List of allowed file extensions
 ALLOWED_EXTENSIONS = [".c", ".cpp", ".py", ".awk", ".gz"]
 
+def _broker_url():
+    """Where the queue lives. Env wins, then config.json, then the local default.
+
+    Keeping this configurable means the lab server does not have to be the box
+    running Redis, and the broker does not have to be Redis at all: anything
+    Celery/kombu speaks will do."""
+    url = (os.environ.get("IG_BROKER_URL") or "").strip()
+    if url:
+        return url
+    try:
+        import json as _json
+        with open("config.json") as f:
+            return (_json.load(f).get("broker_url") or "").strip() or "redis://localhost:6379"
+    except Exception:
+        return "redis://localhost:6379"
+
+
+BROKER_URL = _broker_url()
+
 capp = Celery(
     'task',
-    broker="redis://localhost:6379",
-    backend="redis://localhost:6379"
+    broker=BROKER_URL,
+    backend=BROKER_URL
 )
 
 @capp.task(name="handle-sub")

@@ -5,7 +5,11 @@ This is the standard evaluation template for IndiGrader. It provides a full envi
 ## 1. Prerequisites
 Ensure the server machine has the following installed:
 - Python 3.9+ (3.12+ recommended)
-- Redis Server (`sudo apt install redis-server`)
+- Redis, but **you do not need to install it system-wide**: `requirements.txt`
+  pulls in `redislite`, which drops a `redis-server` binary straight into your
+  virtualenv. `sudo apt install redis-server` still works if you prefer it, and a
+  system Redis is used in preference when present. To point at a broker on
+  another machine instead, set `IG_BROKER_URL` or `broker_url` in `config.json`.
 - Firejail (`sudo apt install firejail`)
 
 ## 2. Server Installation & Offline Deployment

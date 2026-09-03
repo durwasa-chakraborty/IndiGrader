@@ -3,7 +3,12 @@
 ## Core Stack
 - **Web Framework**: FastAPI (Python 3.9 <= version <= 3.12)
 - **Asynchronous Task Queue**: Celery
-- **Message Broker**: Redis
+- **Message Broker**: Redis by default, resolved from `IG_BROKER_URL`, then
+  `broker_url` in `config.json`, then `redis://localhost:6379`. No system install
+  is required: `redislite` ships a `redis-server` binary inside the virtualenv.
+  `start.sh` verifies the broker through kombu before starting anything and exits
+  non-zero if it cannot connect, rather than starting a server that will fail
+  every submission.
 - **Containerization/Sandboxing**: Firejail (Linux-only)
 - **Client Tooling**: Bash, curl, jq
 
