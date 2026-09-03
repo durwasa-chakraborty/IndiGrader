@@ -7,13 +7,37 @@ echo -e "\033[1;36m[*] Starting IndiGrader Server...\033[0m"
 
 # Pre-flight Checks
 echo -e "\033[1;34m[*] Running pre-flight checks...\033[0m"
-if ! command -v jq >/dev/null 2>&1; then
-    echo -e "\033[0;31m[-] ERROR: jq is not installed, and this script needs it to read config.json.\033[0m"
-    echo -e "\033[1;33m    sudo apt install jq        (or: brew install jq)\033[0m"
-    exit 1
-fi
 
-if ! jq empty config.json 2>/dev/null; then
+# Read JSON without needing jq. python3 already has to be present to run any of
+# this, so the lab server needs no extra system packages for config parsing.
+json_get() {   # json_get <file> <dotted.path> [default]
+    python3 - "$1" "$2" "${3-}" <<'PYEOF'
+import json, sys
+path, default = sys.argv[2], sys.argv[3]
+try:
+    doc = json.load(open(sys.argv[1]))
+except Exception:
+    print("")
+    sys.exit(0)
+cur = doc
+try:
+    for part in path.split("."):
+        cur = cur[part]
+except Exception:
+    cur = None
+if cur is None:
+    cur = default
+if isinstance(cur, bool):
+    cur = "true" if cur else "false"
+print(cur)
+PYEOF
+}
+
+json_valid() {  # json_valid <file>
+    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$1" 2>/dev/null
+}
+
+if ! json_valid config.json; then
     echo -e "\033[0;31m[-] ERROR: config.json is missing or contains invalid JSON.\033[0m"
     exit 1
 fi
@@ -38,7 +62,7 @@ mkdir -p logs
 
 # 1. Broker. Not necessarily Redis, and not necessarily on this machine:
 #    IG_BROKER_URL wins, then broker_url in config.json, then the local default.
-BROKER_URL="${IG_BROKER_URL:-$(jq -r '.broker_url // empty' config.json 2>/dev/null)}"
+BROKER_URL="${IG_BROKER_URL:-$(json_get config.json broker_url "")}"
 if [ -z "$BROKER_URL" ]; then BROKER_URL="redis://localhost:6379"; fi
 
 # Ask kombu (which Celery uses anyway) whether it can actually connect. This is
@@ -130,7 +154,7 @@ if [ -z "$LAB_IP" ]; then LAB_IP="<server-ip>"; fi
 
 echo -e "\033[1;36m------------------------------------------------------\033[0m"
 echo -e "\033[1;36m[*] CONTROL ROOM: \033[1;33mhttp://$LAB_IP:8000/admin\033[0m"
-if [ -n "$IG_ADMIN_TOKEN" ] || [ -n "$(jq -r '.admin_token // empty' config.json 2>/dev/null)" ]; then
+if [ -n "$IG_ADMIN_TOKEN" ] || [ -n "$(json_get config.json admin_token "")" ]; then
     # Not echoed: logs/ travels back inside the lab package after the session.
     echo -e "\033[1;36m[*] ADMIN TOKEN: \033[1;32mset\033[0m\033[1;36m - the console will ask for it\033[0m"
 else

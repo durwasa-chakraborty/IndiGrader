@@ -220,29 +220,25 @@ if [ "$COMMAND" == "history" ]; then
         exit 0
     fi
     
-    if command -v jq >/dev/null 2>&1; then
-        DETAIL=$(echo "$HISTORY_JSON" | jq -r 'if type == "object" then .detail // empty else empty end')
-        if [ -n "$DETAIL" ]; then
-            echo -e "\033[0;31mError retrieving history:\033[0m"
-            echo "$DETAIL"
-            exit 1
-        fi
-    else
-        if echo "$HISTORY_JSON" | grep -q "detail"; then
-            echo -e "\033[0;31mError retrieving history:\033[0m"
-            echo "$HISTORY_JSON" | grep -o '"detail":"[^"]*"' | cut -d'"' -f4
-            exit 1
-        fi
+    DETAIL=$(python3 -c "
+import sys, json
+try:
+    d = json.loads(sys.argv[1])
+    print(d.get('detail', '') if isinstance(d, dict) else '')
+except Exception:
+    print('')
+" "$HISTORY_JSON")
+    if [ -n "$DETAIL" ]; then
+        echo -e "\033[0;31mError retrieving history:\033[0m"
+        echo "$DETAIL"
+        exit 1
     fi
 
     echo "------------------------------------------------"
     printf "%-5s | %-25s | %-10s\n" "SN" "Submission Time" "Marks"
     echo "------------------------------------------------"
     
-    if command -v jq >/dev/null 2>&1; then
-        echo "$HISTORY_JSON" | jq -r '.[] | "\((.sn | tostring + "     ") | .[0:5]) | \((.timestamp | tostring + "                         ") | .[0:25]) | \((.marks | tostring + "          ") | .[0:10])"' 2>/dev/null
-    else
-        python3 -c "
+    python3 -c "
 import sys, json
 try:
     data = json.loads(sys.argv[1])
@@ -251,7 +247,6 @@ try:
 except Exception as e:
     print('Error parsing history:', e)
 " "$HISTORY_JSON"
-    fi
     
     echo "------------------------------------------------"
     

@@ -13,13 +13,14 @@ This guide explains how to properly scaffold and deploy an IndiGrader lab enviro
 **For the Lab Server:**
 Ensure the machine where the lab will be hosted has the following installed:
 - Python 3.9+ (3.12+ recommended)
+- Firejail (`sudo apt install firejail`) - the only system package still needed.
+  It sandboxes student code, it is a setuid binary, and no pip package can
+  supply it. Everything else, including Redis, comes from `requirements.txt`.
 - Redis, but **you do not need to install it system-wide**: `requirements.txt`
   pulls in `redislite`, which drops a `redis-server` binary straight into your
   virtualenv. `sudo apt install redis-server` still works if you prefer it, and a
   system Redis is used in preference when present. To point at a broker on
   another machine instead, set `IG_BROKER_URL` or `broker_url` in `config.json`.
-- Firejail (`sudo apt install firejail`)
-- jq (`sudo apt install jq`)
 
 It is highly recommended to create a Python virtual environment on the **Lab Server's** home directory (not in the lab folder) to avoid conflicts. (Note: This setup is only required on the first day if not set up earlier):
 ```bash

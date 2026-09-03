@@ -203,10 +203,10 @@ If a token is set, add `-H "X-Admin-Token: $TOKEN"` to each call below (or
 `?token=$TOKEN` on the GETs); without one they work as written.
 
 ```bash
-TOKEN=$(jq -r '.admin_token // empty' config.json)   # empty if you did not set one
+TOKEN=$(python3 -c 'import json;print(json.load(open("config.json")).get("admin_token") or "")')
 
 # Everything the dashboard shows, in one JSON document
-curl -s localhost:8000/api/admin/overview | jq .lab
+curl -s localhost:8000/api/admin/overview | python3 -m json.tool
 
 # Give the class another 20 minutes
 curl -s -X POST localhost:8000/api/admin/time \

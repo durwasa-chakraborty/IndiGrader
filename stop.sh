@@ -3,6 +3,36 @@
 # IndiGrader Graceful Shutdown Script
 # ==============================================================================
 
+
+# Read JSON without needing jq. python3 already has to be present to run any of
+# this, so the lab server needs no extra system packages for config parsing.
+json_get() {   # json_get <file> <dotted.path> [default]
+    python3 - "$1" "$2" "${3-}" <<'PYEOF'
+import json, sys
+path, default = sys.argv[2], sys.argv[3]
+try:
+    doc = json.load(open(sys.argv[1]))
+except Exception:
+    print("")
+    sys.exit(0)
+cur = doc
+try:
+    for part in path.split("."):
+        cur = cur[part]
+except Exception:
+    cur = None
+if cur is None:
+    cur = default
+if isinstance(cur, bool):
+    cur = "true" if cur else "false"
+print(cur)
+PYEOF
+}
+
+json_valid() {  # json_valid <file>
+    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$1" 2>/dev/null
+}
+
 echo -e "\033[1;36m[*] Initiating graceful shutdown of IndiGrader...\033[0m"
 
 # 1. Stop FastAPI to prevent new submissions
@@ -122,7 +152,7 @@ echo -e "\033[1;32m[+] Celery workers stopped.\033[0m"
 
 # 4. Stop the broker only if this package started it (logs/redis.log is our marker).
 if [ -f logs/redis.log ] && command -v redis-cli >/dev/null 2>&1; then
-    BROKER_URL="${IG_BROKER_URL:-$(jq -r '.broker_url // empty' config.json 2>/dev/null)}"
+    BROKER_URL="${IG_BROKER_URL:-$(json_get config.json broker_url "")}"
     if [ -z "$BROKER_URL" ]; then BROKER_URL="redis://localhost:6379"; fi
     PORT=$(echo "$BROKER_URL" | sed -n 's#.*:\([0-9][0-9]*\).*#\1#p')
     if [ -z "$PORT" ]; then PORT=6379; fi

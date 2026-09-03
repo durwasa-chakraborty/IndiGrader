@@ -42,12 +42,43 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
+# Read JSON without needing jq. python3 is already required by the server and is
+# present on every machine that can run the lab client.
+json_get() {   # json_get <file> <dotted.path> [default]
+    python3 - "$1" "$2" "${3-}" <<'PYEOF'
+import json, sys
+path, default = sys.argv[2], sys.argv[3]
+try:
+    doc = json.load(open(sys.argv[1]))
+except Exception:
+    # Unparseable or missing file: emit nothing, exactly as `jq` would, so a
+    # broken config surfaces instead of silently grading against defaults.
+    print("")
+    sys.exit(0)
+cur = doc
+try:
+    for part in path.split("."):
+        cur = cur[part]
+except Exception:
+    cur = None
+if cur is None:
+    cur = default
+if isinstance(cur, bool):
+    cur = "true" if cur else "false"
+print(cur)
+PYEOF
+}
+
+json_valid() {  # json_valid <file>
+    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$1" 2>/dev/null
+}
+
 # Load config
-EVALUATOR=$(jq -r ".\"$QUESTION\".evaluator // empty" "$CONFIG_FILE" 2>/dev/null)
-TIMEOUT_SEC=$(jq -r ".\"$QUESTION\".timeout // 5" "$CONFIG_FILE" 2>/dev/null)
-MEM_CAP_MB=$(jq -r ".\"$QUESTION\".memory_cap_mb // 512" "$CONFIG_FILE" 2>/dev/null)
-MAKEFILE_MODE=$(jq -r ".\"$QUESTION\".makefile // false" "$CONFIG_FILE" 2>/dev/null)
-EXEC_NAME=$(jq -r ".\"$QUESTION\".executable_name // \"$QUESTION\"" "$CONFIG_FILE" 2>/dev/null)
+EVALUATOR=$(json_get "$CONFIG_FILE" "$QUESTION.evaluator" "")
+TIMEOUT_SEC=$(json_get "$CONFIG_FILE" "$QUESTION.timeout" "5")
+MEM_CAP_MB=$(json_get "$CONFIG_FILE" "$QUESTION.memory_cap_mb" "512")
+MAKEFILE_MODE=$(json_get "$CONFIG_FILE" "$QUESTION.makefile" "false")
+EXEC_NAME=$(json_get "$CONFIG_FILE" "$QUESTION.executable_name" "$QUESTION")
 
 # Detect extension
 FILENAME=$(basename "$SUBMISSION")

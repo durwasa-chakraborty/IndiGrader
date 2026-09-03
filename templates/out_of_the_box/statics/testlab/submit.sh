@@ -1,4 +1,72 @@
 #!/bin/bash
+# --- JSON helpers: python3 instead of an extra system package ----------------
+# python3 ships with every Linux distribution these labs run on, so students
+# install nothing.
+json_file() {   # json_file <file> <dotted.path> [default]
+    python3 - "$1" "$2" "${3-}" <<'PYEOF'
+import json, sys
+path, default = sys.argv[2], sys.argv[3]
+try:
+    cur = json.load(open(sys.argv[1]))
+except Exception:
+    print(""); sys.exit(0)
+try:
+    for part in path.split("."):
+        if part: cur = cur[part]
+except Exception:
+    cur = None
+if cur is None: cur = default
+if isinstance(cur, bool): cur = "true" if cur else "false"
+print(cur)
+PYEOF
+}
+
+json_get() {    # json_get <dotted.path>   (JSON on stdin)
+    # -c, not a heredoc: a heredoc would occupy stdin and starve the pipe.
+    python3 -c '
+import json, sys
+try:
+    cur = json.load(sys.stdin)
+except Exception:
+    print(""); sys.exit(0)
+try:
+    for part in sys.argv[1].split("."):
+        if part: cur = cur[part]
+except Exception:
+    print(""); sys.exit(0)
+if cur is None: print("null")
+elif isinstance(cur, bool): print("true" if cur else "false")
+elif isinstance(cur, (dict, list)): print(json.dumps(cur))
+else: print(cur)
+' "$1"
+}
+
+json_len() {    # json_len <file> <key>
+    python3 - "$1" "$2" <<'PYEOF'
+import json, sys
+try:
+    print(len(json.load(open(sys.argv[1]))[sys.argv[2]]))
+except Exception:
+    print(0)
+PYEOF
+}
+
+json_keys() {   # json_keys <dotted.path>  (JSON on stdin)
+    python3 -c '
+import json, sys
+try:
+    cur = json.load(sys.stdin)
+    for part in sys.argv[1].split("."):
+        if part: cur = cur[part]
+    for k in cur: print(k)
+except Exception:
+    pass
+' "$1"
+}
+
+json_pretty() { python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin), indent=2))' 2>/dev/null; }
+# ----------------------------------------------------------------------------
+
 
 if [ -z "$SERVER_URL" ]; then
     if [ -f ".ig_course/course_id" ]; then
@@ -11,7 +79,8 @@ if [ -z "$SERVER_URL" ]; then
 fi
 SERVER_URL="${SERVER_URL:-http://127.0.0.1:8000}"
 
-TOTAL_QUESTIONS=$(jq '.questions | length' .ig_course/config.json 2>/dev/null || echo 1)
+TOTAL_QUESTIONS=$(json_len .ig_course/config.json questions)
+if [ "$TOTAL_QUESTIONS" -eq 0 ]; then TOTAL_QUESTIONS=1; fi
 total_obtained_marks=0
 
 # Detect Roll No
@@ -45,10 +114,8 @@ if ! command -v curl &> /dev/null; then
     exit 1
 fi
 
-if ! command -v jq &> /dev/null; then
-    echo -e "${RED}ERROR: 'jq' is not installed. Please install it to continue.${NC}"
-    echo "Installation example:"
-    echo "  - Ubuntu/Debian: sudo apt-get install jq"
+if ! command -v python3 &> /dev/null; then
+    echo -e "${RED}ERROR: 'python3' is not installed. Please install it to continue.${NC}"
     exit 1
 fi
 
@@ -96,7 +163,7 @@ submit_question() {
     fi
 
     # Check if late
-    local END_TIME=$(jq -r '.end_time' .ig_course/config.json 2>/dev/null)
+    local END_TIME=$(json_file .ig_course/config.json end_time "")
     local IS_LATE=false
     if [ -n "$END_TIME" ] && [ "$END_TIME" != "null" ]; then
         local CURRENT_SEC=$(date -u +%s)
@@ -120,16 +187,16 @@ submit_question() {
     local SUBMIT_RESPONSE=$("${CURL_CMD[@]}")
 
     if echo "$SUBMIT_RESPONSE" | grep -q "\"detail\""; then
-        local ERR_MSG=$(echo "$SUBMIT_RESPONSE" | jq -r '.detail')
+        local ERR_MSG=$(echo "$SUBMIT_RESPONSE" | json_get detail)
         echo -e "${RED}Server Error: ${ERR_MSG}${NC}"
         return 1
     fi
 
-    local TASK_ID=$(echo "$SUBMIT_RESPONSE" | jq -r '.taskid')
+    local TASK_ID=$(echo "$SUBMIT_RESPONSE" | json_get taskid)
 
     if [ -z "$TASK_ID" ] || [ "$TASK_ID" == "null" ]; then
         echo -e "${RED}Failed to submit ${Q_NO}. Server response:${NC}"
-        echo "$SUBMIT_RESPONSE" | jq '.'
+        echo "$SUBMIT_RESPONSE" | json_pretty
         return 1
     fi
 
@@ -159,7 +226,7 @@ poll_and_report_question() {
     echo -e "\n${YELLOW}Waiting for evaluation of ${Q_NO}...${NC}"
     while true; do
         STATUS_RESPONSE=$(curl -s "${SERVER_URL}/task-status/${TASK_ID}")
-        local TASK_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
+        local TASK_STATUS=$(echo "$STATUS_RESPONSE" | json_get status)
 
         if [ "$TASK_STATUS" != "PENDING" ]; then
             echo -e "\n${GREEN}Task has completed with status: $TASK_STATUS${NC}"
@@ -172,34 +239,34 @@ poll_and_report_question() {
 
     # Process response
     echo -e "\n${BLUE}Final Result [${Q_NO}]${NC}"
-    local TASK_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
+    local TASK_STATUS=$(echo "$STATUS_RESPONSE" | json_get status)
 
     if [ "$TASK_STATUS" != "SUCCESS" ]; then
         echo -e "${RED}The task failed to execute on the server.${NC}"
         echo "Server Response:"
-        echo "$STATUS_RESPONSE" | jq '.'
+        echo "$STATUS_RESPONSE" | json_pretty
         return 1
     fi
 
-    local FINAL_RESULT=$(echo "$STATUS_RESPONSE" | jq '.result')
-    local APP_STATUS=$(echo "$FINAL_RESULT" | jq -r '.status')
+    local FINAL_RESULT=$(echo "$STATUS_RESPONSE" | json_get result)
+    local APP_STATUS=$(echo "$FINAL_RESULT" | json_get status)
 
     if [[ "$APP_STATUS" == *"Compilation Error"* ]]; then
         echo -e "${RED}An error occurred during evaluation: ${APP_STATUS}${NC}"
         echo "Details:"
-        echo "$FINAL_RESULT" | jq -r '.details'
+        echo "$FINAL_RESULT" | json_get details
 
     elif [ "$APP_STATUS" == "Finished" ]; then
         echo -e "${GREEN}Evaluation finished successfully!${NC}"
 
-        local PASSED_COUNT=$(echo "$FINAL_RESULT" | jq -r '.passed')
-        local FAILED_COUNT=$(echo "$FINAL_RESULT" | jq -r '.failed')
-        local OBTAINED_MARKS=$(echo "$FINAL_RESULT" | jq -r '.marks')
-        local QUESTION_FULL_MARKS=$(echo "$FINAL_RESULT" | jq -r '.full')
+        local PASSED_COUNT=$(echo "$FINAL_RESULT" | json_get passed)
+        local FAILED_COUNT=$(echo "$FINAL_RESULT" | json_get failed)
+        local OBTAINED_MARKS=$(echo "$FINAL_RESULT" | json_get marks)
+        local QUESTION_FULL_MARKS=$(echo "$FINAL_RESULT" | json_get full)
 
         echo -e "\n${BLUE}Test Case Details:${NC}"
-        echo "$FINAL_RESULT" | jq -r '.results | keys[]' | while IFS= read -r test_name; do
-            local VERDICT=$(echo "$FINAL_RESULT" | jq -r ".results[\"$test_name\"]")
+        echo "$FINAL_RESULT" | json_keys results | while IFS= read -r test_name; do
+            local VERDICT=$(echo "$FINAL_RESULT" | json_get "results.$test_name")
             local FORMATTED_VERDICT=""
             case "$VERDICT" in
                 "PASSED") FORMATTED_VERDICT="${GREEN}${VERDICT}${NC}" ;;
@@ -219,11 +286,11 @@ poll_and_report_question() {
     elif [[ "$APP_STATUS" == *"Error"* ]]; then
         echo -e "${RED}An error occurred during evaluation: ${APP_STATUS}${NC}"
         echo "Details:"
-        echo "$FINAL_RESULT" | jq '.'
+        echo "$FINAL_RESULT" | json_pretty
     else
         echo -e "${YELLOW}Received an unknown status: ${APP_STATUS}${NC}"
         echo "Full Server Response:"
-        echo "$STATUS_RESPONSE" | jq '.'
+        echo "$STATUS_RESPONSE" | json_pretty
     fi
 }
 

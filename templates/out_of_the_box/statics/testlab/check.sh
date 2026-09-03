@@ -1,4 +1,72 @@
 #!/bin/bash
+# --- JSON helpers: python3 instead of an extra system package ----------------
+# python3 ships with every Linux distribution these labs run on, so students
+# install nothing.
+json_file() {   # json_file <file> <dotted.path> [default]
+    python3 - "$1" "$2" "${3-}" <<'PYEOF'
+import json, sys
+path, default = sys.argv[2], sys.argv[3]
+try:
+    cur = json.load(open(sys.argv[1]))
+except Exception:
+    print(""); sys.exit(0)
+try:
+    for part in path.split("."):
+        if part: cur = cur[part]
+except Exception:
+    cur = None
+if cur is None: cur = default
+if isinstance(cur, bool): cur = "true" if cur else "false"
+print(cur)
+PYEOF
+}
+
+json_get() {    # json_get <dotted.path>   (JSON on stdin)
+    # -c, not a heredoc: a heredoc would occupy stdin and starve the pipe.
+    python3 -c '
+import json, sys
+try:
+    cur = json.load(sys.stdin)
+except Exception:
+    print(""); sys.exit(0)
+try:
+    for part in sys.argv[1].split("."):
+        if part: cur = cur[part]
+except Exception:
+    print(""); sys.exit(0)
+if cur is None: print("null")
+elif isinstance(cur, bool): print("true" if cur else "false")
+elif isinstance(cur, (dict, list)): print(json.dumps(cur))
+else: print(cur)
+' "$1"
+}
+
+json_len() {    # json_len <file> <key>
+    python3 - "$1" "$2" <<'PYEOF'
+import json, sys
+try:
+    print(len(json.load(open(sys.argv[1]))[sys.argv[2]]))
+except Exception:
+    print(0)
+PYEOF
+}
+
+json_keys() {   # json_keys <dotted.path>  (JSON on stdin)
+    python3 -c '
+import json, sys
+try:
+    cur = json.load(sys.stdin)
+    for part in sys.argv[1].split("."):
+        if part: cur = cur[part]
+    for k in cur: print(k)
+except Exception:
+    pass
+' "$1"
+}
+
+json_pretty() { python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin), indent=2))' 2>/dev/null; }
+# ----------------------------------------------------------------------------
+
 
 # Local Evaluation Script
 # Usage: ./check.sh [question_number]
@@ -20,10 +88,8 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Dependencies
-if ! command -v jq &> /dev/null; then
-    echo -e "${RED}ERROR: 'jq' is not installed. Please install it to continue.${NC}"
-    echo "Installation example:"
-    echo "  - Ubuntu/Debian: sudo apt-get install jq"
+if ! command -v python3 &> /dev/null; then
+    echo -e "${RED}ERROR: 'python3' is not installed. Please install it to continue.${NC}"
     exit 1
 fi
 
@@ -56,7 +122,7 @@ grade_student() {
         local question_digits=$(echo "$question" | tr -dc '0-9')
         local has_makefile="false"
         if [ -f "$CONFIG_PATH" ]; then
-            has_makefile=$(jq -r ".\"$question\".makefile // false" "$CONFIG_PATH" 2>/dev/null)
+            has_makefile=$(json_file "$CONFIG_PATH" "$question.makefile" "false")
         fi
 
         shopt -s nullglob

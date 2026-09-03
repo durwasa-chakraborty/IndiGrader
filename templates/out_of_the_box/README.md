@@ -5,6 +5,9 @@ This is the standard evaluation template for IndiGrader. It provides a full envi
 ## 1. Prerequisites
 Ensure the server machine has the following installed:
 - Python 3.9+ (3.12+ recommended)
+- `firejail` (`sudo apt install firejail`). This is the one unavoidable system
+  package: it is the sandbox that isolates student code, it is a setuid binary,
+  and no pip package can provide it.
 - Redis, but **you do not need to install it system-wide**: `requirements.txt`
   pulls in `redislite`, which drops a `redis-server` binary straight into your
   virtualenv. `sudo apt install redis-server` still works if you prefer it, and a

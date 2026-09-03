@@ -10,7 +10,9 @@
   non-zero if it cannot connect, rather than starting a server that will fail
   every submission.
 - **Containerization/Sandboxing**: Firejail (Linux-only)
-- **Client Tooling**: Bash, curl, jq
+- **Client Tooling**: Bash, curl and python3 only. The client and grading
+  scripts parse JSON with python3 rather than `jq`, so students install nothing
+  beyond what their machine already has.
 
 ## Code Evaluation Constraints
 The execution environment enforces configuration-defined resource constraints to maintain server stability.
