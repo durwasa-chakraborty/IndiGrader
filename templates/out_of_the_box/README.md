@@ -30,6 +30,10 @@ pip install -r requirements.txt
    - `pwd_end_time` *(optional)*: Deadline for the students listed in
      `pwd_students.txt`. Omit it (or leave it `null`) and they get an open-ended
      window, which is the historical behaviour.
+   - `admin_token` *(optional)*: Password for the Control Room at `/admin`. Leave
+     it `null` and the console is guarded by `allowed_subnets` alone; set a string
+     and it is required. `IG_ADMIN_TOKEN` in the environment overrides it. Never
+     shipped to students.
    - `allowed_subnet`: e.g., `"192.168.1."` to restrict access strictly to the lab's local network.
    - `questions`: List the questions (e.g., `["Q1", "Q2"]`) and their constraints.
    - **Makefile Projects**: To support multi-file projects needing a `Makefile`, set `"makefile": true`. The engine will run `make` on the student's submission. Use `"executable_name": "target_name"` to define what binary the `make` command produces (defaults to the question name, e.g., `Q1`).

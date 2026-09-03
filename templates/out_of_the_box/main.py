@@ -7,13 +7,14 @@ import csv
 import glob
 import itertools
 import json
+import secrets
 import shutil
 import time
 from collections import Counter, deque
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
-from fastapi import (APIRouter, Body, FastAPI, File, Form,
+from fastapi import (APIRouter, Body, Depends, FastAPI, File, Form,
                      HTTPException, Request, UploadFile, status)
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -45,6 +46,12 @@ student_list = set()
 # fast lookups: { "ROLL_NO": "ip_address" } and its reverse
 ip_roll_map = {}
 roll_by_ip = {}
+
+# Optional. Set it in config.json as "admin_token", or export IG_ADMIN_TOKEN
+# before starting the server. Left unset, the console is guarded by the network
+# rules alone (loopback + allowed_subnets), which is the right trade when the
+# server sits in a locked room on a closed lab network.
+ADMIN_TOKEN = None
 
 file_lock = asyncio.Lock()
 config_lock = asyncio.Lock()
@@ -176,7 +183,7 @@ def _question_list():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global lab_config
+    global lab_config, ADMIN_TOKEN
     print("Application starting up...")
 
     print("Loading config.json...")
@@ -220,10 +227,18 @@ async def lifespan(app: FastAPI):
 
     print(f"Loaded {len(ip_roll_map)} registrations into memory.")
 
+    # Env wins over config.json so a token can be set without editing the file.
+    ADMIN_TOKEN = (os.environ.get("IG_ADMIN_TOKEN") or lab_config.get("admin_token") or "").strip() or None
+
     print("=" * 62)
     print("  CONTROL ROOM  : http://<this-server>:8000/admin")
     print(f"  LAB WINDOW    : {lab_config['start_time']}  ->  {lab_config['end_time']}")
     print(f"  REACHABLE FROM: loopback + {lab_config.get('allowed_subnets', [])}")
+    if ADMIN_TOKEN:
+        # Deliberately not echoed: logs/ travels back inside the lab package.
+        print("  ADMIN TOKEN   : required (set - not printed)")
+    else:
+        print("  ADMIN TOKEN   : not set (network rules are the only control)")
     print("=" * 62)
 
     yield
@@ -1008,11 +1023,23 @@ def _lab_state(now):
     return "ended"
 
 
-# The console carries no password of its own: reachability is the control.
-# _access_control() allows /admin and /api/admin only from loopback or from an
-# address inside config.json's allowed_subnets, and every mutation is recorded
-# in admin_actions.csv with the caller's IP.
-admin = APIRouter(prefix="/api/admin")
+def require_admin(request: Request):
+    """Token check, only when one is configured.
+
+    Reachability is always the first control: _access_control() lets /admin and
+    /api/admin through only from loopback or from an address inside
+    allowed_subnets. A token adds a second factor on top of that, for when the
+    lab subnet is shared with the student workstations."""
+    if not ADMIN_TOKEN:
+        return True
+    supplied = request.headers.get("x-admin-token") or request.query_params.get("token")
+    if not supplied or not secrets.compare_digest(supplied, ADMIN_TOKEN):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid or missing admin token.")
+    return True
+
+
+admin = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])
 
 
 @app.get("/admin", response_class=HTMLResponse)

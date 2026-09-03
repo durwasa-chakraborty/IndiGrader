@@ -50,12 +50,14 @@ must be able to change mid-session:
   queued tasks are read directly from the Redis list, and worker activity from
   `celery.control.inspect`. Filesystem aggregation over `marks.txt` is memoised
   on `(mtime, size)` so polling stays cheap during a lab.
-- **Access.** Reachability *is* the control: admin routes are always open on
-  loopback and otherwise subject to the same `allowed_subnets` rule as the rest
-  of the server, on the assumption that the lab server sits on a closed network
-  in a controlled room. They are exempt from the lab-ended gate, since that is
-  precisely when an extension is needed. Every mutation is appended to
-  `admin_actions.csv` with the caller's IP.
+- **Access.** Reachability is the primary control: admin routes are always open
+  on loopback and otherwise subject to the same `allowed_subnets` rule as the
+  rest of the server. An optional `admin_token` (config.json, or `IG_ADMIN_TOKEN`
+  in the environment) adds a constant-time second factor for deployments where
+  student workstations share that subnet; it is never auto-generated, never
+  logged, and stripped from the student starter kit. Admin routes are exempt from
+  the lab-ended gate, since that is precisely when an extension is needed. Every
+  mutation is appended to `admin_actions.csv` with the caller's IP.
 
 See [The Control Room](control_room.md) for the operator-facing guide.
 

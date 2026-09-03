@@ -224,7 +224,25 @@
   }
   .chip.on{background:var(--series-soft);border-color:var(--series);color:#a8cbf5}
 
-  /* ---------- toast ---------- */
+  /* ---------- gate & toast ---------- */
+  .gate{
+    position:fixed;inset:0;z-index:100;display:none;place-items:center;
+    background:rgba(5,8,16,.9);backdrop-filter:blur(6px);
+  }
+  .gate.show{display:grid}
+  .gate-card{
+    background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;
+    padding:30px;width:min(420px,92vw);
+  }
+  .gate-card h2{font-size:1.15rem;margin-bottom:7px}
+  .gate-card p{color:var(--ink-2);font-size:.85rem;line-height:1.6;margin-bottom:18px}
+  .gate-card input{
+    width:100%;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:9px;padding:11px 13px;margin-bottom:12px;font-family:ui-monospace,monospace;
+  }
+  .gate-card input:focus{outline:none;border-color:var(--series)}
+  .gate-err{color:#f08a8a;font-size:.82rem;margin-bottom:12px;display:none}
+  .gate-err.show{display:block}
   #toasts{position:fixed;right:20px;bottom:20px;z-index:120;display:flex;flex-direction:column;gap:9px}
   .toast{
     background:var(--surface-2);border:1px solid var(--line-strong);border-left:3px solid var(--series);
@@ -247,6 +265,17 @@
 </head>
 <body>
 
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <h2>Admin token required</h2>
+    <p>This lab sets <code>admin_token</code> in <code>config.json</code>
+       (or <code>IG_ADMIN_TOKEN</code> in the server's environment).</p>
+    <div class="gate-err" id="gateErr"></div>
+    <input id="tokenInput" type="password" placeholder="admin token" autocomplete="off" spellcheck="false">
+    <button class="btn primary" style="width:100%" id="gateBtn">Unlock</button>
+  </div>
+</div>
+
 <header class="bar">
   <div class="bar-inner">
     <div class="brand"><span class="dot" id="liveDot"></span><span id="labName">IndiGrader</span></div>
@@ -261,6 +290,7 @@
         <option value="10000">10s</option>
       </select>
       <button class="btn ghost" id="pauseBtn">Pause</button>
+      <button class="btn ghost" id="logoutBtn" title="Forget this token" hidden>Lock</button>
     </div>
   </div>
 </header>
@@ -458,6 +488,7 @@
 
   const $ = (id) => document.getElementById(id);
   const S = {
+    token: localStorage.getItem('ig_admin_token') || '',
     interval: 3000,
     paused: false,
     data: null,
@@ -503,9 +534,15 @@
   /* ---------------- api ---------------- */
   async function api(path, opts){
     opts = opts || {};
-    const headers = opts.body ? {'Content-Type': 'application/json'} : {};
+    const headers = {};
+    if (S.token) headers['X-Admin-Token'] = S.token;
+    if (opts.body) headers['Content-Type'] = 'application/json';
     const res = await fetch('/api/admin' + path, {...opts, headers, cache:'no-store'});
-    if (res.ok === false && res.status === 403){
+    if (res.status === 401){
+      lock(S.token ? 'That token was rejected by the server.' : '');
+      throw new Error('unauthorized');
+    }
+    if (res.status === 403){
       throw new Error('This machine is not allowed to reach the console (check allowed_subnets).');
     }
     if (!res.ok){
@@ -516,6 +553,34 @@
     return res.json();
   }
 
+  /* ---------------- token gate (only if the server asks) ---------------- */
+  function lock(msg){
+    S.token = '';
+    localStorage.removeItem('ig_admin_token');
+    clearTimeout(S.timer);
+    $('logoutBtn').hidden = true;
+    $('gate').classList.add('show');
+    if (msg){ $('gateErr').textContent = msg; $('gateErr').classList.add('show'); }
+    setTimeout(() => $('tokenInput').focus(), 50);
+  }
+  async function unlock(){
+    const value = $('tokenInput').value.trim();
+    if (!value) return;
+    S.token = value;
+    try {
+      await api('/ping');
+      localStorage.setItem('ig_admin_token', value);
+      $('gate').classList.remove('show');
+      $('gateErr').classList.remove('show');
+      $('tokenInput').value = '';
+      $('logoutBtn').hidden = false;
+      tick();
+    } catch(err){ /* api() already re-opened the gate on 401 */ }
+  }
+  $('gateBtn').addEventListener('click', unlock);
+  $('tokenInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+  $('logoutBtn').addEventListener('click', () => lock(''));
+
   /* ---------------- polling ---------------- */
   async function tick(){
     clearTimeout(S.timer);
@@ -524,9 +589,11 @@
       S.data = data;
       S.offset = new Date(data.server_time).getTime() - Date.now();
       S.failures = 0;
+      if (S.token) $('logoutBtn').hidden = false;
       $('liveDot').classList.remove('stale');
       render(data);
     } catch(err){
+      if (err.message === 'unauthorized') return;   // gate is up; stop polling
       S.failures++;
       $('liveDot').classList.add('stale');
       if (S.failures === 1) toast('Lost contact with the server: ' + err.message, 'bad');

@@ -358,6 +358,10 @@ def main():
     subnet_str = input(CYAN + f"Enter Allowed Subnets (comma-separated) [{def_sub}]: " + RESET).strip() or def_sub
     allowed_subnets = [s.strip() for s in subnet_str.split(",") if s.strip()]
     
+    # Deliberately not stored in .builder_profiles.json - a secret should be
+    # typed on purpose each time, not silently carried between labs.
+    admin_token = input(CYAN + "Control Room admin token (blank = no token, lab subnet only): " + RESET).strip()
+
     default_date = datetime.now().strftime("%Y-%m-%d")
     date_str = input(CYAN + f"Enter Date (YYYY-MM-DD) [{default_date}]: " + RESET).strip() or default_date
     
@@ -501,6 +505,7 @@ def main():
     # PWD students keep submitting until this moment. Leave it out and they get
     # an open-ended window, which is how IndiGrader behaved before.
     config["pwd_end_time"] = (end_dt + timedelta(minutes=pwd_extra)).isoformat() if pwd_extra > 0 else None
+    config["admin_token"] = admin_token or None
     config["allowed_subnets"] = allowed_subnets
     config["questions"] = [f"Q{i}" for i in range(1, num_q + 1)]
     
@@ -560,7 +565,12 @@ def main():
     # 6b. Copy config.json to .ig_course in statics
     ig_course_dir = os.path.join(statics_lab_dir, ".ig_course")
     os.makedirs(ig_course_dir, exist_ok=True)
-    shutil.copy2(config_path, os.path.join(ig_course_dir, "config.json"))
+    # The student copy must never carry the admin token.
+    with open(config_path, "r") as f:
+        student_config = json.load(f)
+    student_config.pop("admin_token", None)
+    with open(os.path.join(ig_course_dir, "config.json"), "w") as f:
+        json.dump(student_config, f, indent=4)
     
     # Global Problem statement
     if global_prob_stmt and os.path.exists(global_prob_stmt):
@@ -656,6 +666,10 @@ def main():
               f"({pwd_extra} min past the end).")
     print(CYAN + "  Extend the lab, retune a question and watch the queue from there." + RESET)
     print(CYAN + f"  Reachable from the server itself and from {', '.join(allowed_subnets)}" + RESET)
+    if admin_token:
+        print(CYAN + "  Protected by the admin token you entered (stored in config.json)." + RESET)
+    else:
+        print(YELLOW + "  No admin token set - anyone on the lab subnet can open it." + RESET)
 
 if __name__ == "__main__":
     main()
