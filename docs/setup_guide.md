@@ -177,16 +177,23 @@ See [The Control Room](control_room.md) for the full tour and the equivalent
 `curl` commands.
 
 ### Editing `config.json` by hand
-FastAPI loads `config.json` into RAM once at startup rather than reading from disk
-on every student request, so a hand edit needs a FastAPI restart to be noticed:
-1. Edit the `config.json` file directly on the server (e.g., `nano config.json`).
-2. Restart **just** the FastAPI server using this simple one-liner to force it to reload the file into RAM without disrupting the Celery grading queue:
-   ```bash
-   pkill -f "fastapi run main.py" && fastapi run main.py > logs/fastapi.log 2>&1 &
-   ```
-Note that the Control Room writes to the same file, so avoid editing by hand and
-extending from the console at the same time - the console's copy would win on its
-next write.
+If you would rather stay in the terminal, just edit the file:
+```bash
+nano config.json      # change end_time, a question's timeout, anything
+```
+The server checks the file's timestamp at most once a second and re-reads it when
+it changes, so the edit takes effect on the next request. **No restart needed.**
+
+A bad edit cannot take the lab down. The new file must parse as JSON, have a
+`lab_name`, and have `start_time` / `end_time` that parse with `end_time` after
+`start_time`. If it fails any of those, the server keeps serving the last good
+configuration, logs the reason to `logs/fastapi.log`, and shows it in the Control
+Room's health bar. Fix the file and it recovers by itself. This also means a
+half-written save is harmless.
+
+Reloads are recorded in `admin_actions.csv` as `config_reloaded_from_disk`, so a
+hand edit is as auditable as a console click. The two are safe to mix: the console
+records its own writes and will not read them back over itself.
 
 *(Note: Clients that have previously downloaded the starter kit will retain the prior deadline locally, but the server maintains the authoritative state and will evaluate late submissions according to the updated configuration).*
 

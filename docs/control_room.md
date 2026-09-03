@@ -165,7 +165,36 @@ allowed subnets, and a loud warning if `DEBUG = True` left access control off.
 
 ---
 
-## 5. HTTP API
+## 5. Editing `config.json` directly
+
+The console is not the only way in. The server re-reads `config.json` whenever the
+file changes, so this works too, no restart and no browser:
+
+```bash
+nano config.json        # change end_time, a question's timeout, anything
+```
+
+The check is one `os.stat` at most once a second, on the request path, so the edit
+applies to the very next request. Useful when you are on a terminal-only session,
+or if the console is unreachable for any reason.
+
+**A bad edit cannot take the lab down.** The candidate file has to parse as JSON,
+carry a `lab_name`, and have `start_time` / `end_time` that parse with the end
+after the start. Fail any of those and the server keeps running the last good
+configuration, prints the reason to `logs/fastapi.log`, and shows it in the
+console's health bar as *config.json rejected: ... (still running the last good
+copy)*. Fix the file and it recovers on its own. A half-written save is caught the
+same way, so saving a large file slowly is not a hazard.
+
+Reloads are appended to `admin_actions.csv` as `config_reloaded_from_disk` with a
+summary of what changed, so a hand edit is as auditable as a console click.
+
+Mixing the two is safe: the console records the mtime of its own writes and will
+not read them back over itself.
+
+---
+
+## 6. HTTP API
 
 Everything the page does is a plain endpoint, so it also works from `curl` on
 the server - handy if you are on a terminal-only session.
@@ -213,7 +242,7 @@ When a token is configured it goes in the `X-Admin-Token` header, or as
 
 ---
 
-## 6. Adding the console to a lab package built earlier
+## 7. Adding the console to a lab package built earlier
 
 Packages built before this feature existed need three things:
 

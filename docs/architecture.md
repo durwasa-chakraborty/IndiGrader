@@ -45,6 +45,12 @@ must be able to change mid-session:
   atomically (temp file plus `rename`), which is what propagates the change to
   the Celery worker and to `grade.sh` - both of which read the file per task -
   and what makes it survive a restart.
+- **Config is re-read on change.** The middleware stats `config.json` at most
+  once a second and reloads it when the mtime moves, so an edit made outside the
+  console (`nano config.json` over SSH) applies without a restart. The candidate
+  is validated before it replaces anything, so a truncated save or a typo leaves
+  the running configuration untouched and is reported instead. The console
+  records the mtime of its own writes so it never reads them back over itself.
 - **Live telemetry.** A single HTTP middleware records every student request
   (in-flight set, ring buffer, per-minute counters); queue depth and the next
   queued tasks are read directly from the Redis list, and worker activity from

@@ -25,6 +25,9 @@ pip install -r requirements.txt
 
 ## 3. Configuration
 1. **`config.json`**: Edit the root configuration file to define your lab's parameters.
+   Edits made while the server is running are picked up automatically within a
+   second, so there is no need to restart anything. An unparseable file is
+   rejected and the previous configuration keeps serving.
    - `start_time` / `end_time`: Enforces strict submission deadlines. Both can be
      changed while the server is running from the Control Room at `/admin`.
    - `pwd_end_time` *(optional)*: Deadline for the students listed in

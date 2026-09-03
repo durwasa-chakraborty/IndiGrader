@@ -101,6 +101,7 @@ activity, in-flight requests, per-student progress, and the violations feed.
 | 3 | Live per-question `timeout` / `memory_cap_mb` / `full_marks` tuning | **Done** - `POST /api/admin/questions/{qno}` |
 | 4 | Enforce the PWD extra time the builder had always collected but never written | **Done** - `pwd_end_time` |
 | 5 | Update §7 of the setup guide so the restart dance is no longer the primary advice | **Done** |
+| 9 | Re-read `config.json` when it changes, so a hand edit needs no restart either | **Done** - validated before it replaces anything |
 | 6 | Make the single-late-submission cap configurable, and make its error text name the deadline as the cause | **Open** - unchanged by this work |
 | 7 | Broker outage handling: with Redis down, `/submit` hangs ~20s and returns a 500 | **Open** - pre-existing Celery behaviour; now at least visible on the console |
 | 8 | Document that FastAPI must run single-process (`--workers` would shard the in-memory deadline) | **Done** - `docs/control_room.md` |

@@ -53,6 +53,15 @@ roll_by_ip = {}
 # server sits in a locked room on a closed lab network.
 ADMIN_TOKEN = None
 
+# config.json is re-read whenever its mtime changes, so `nano config.json` on the
+# server takes effect without a restart. A bad edit is rejected and the last good
+# copy keeps serving.
+CONFIG_POLL_INTERVAL = 1.0          # seconds between mtime checks, at most
+_config_mtime = None
+_config_checked_at = 0.0
+_config_error = None                # last parse failure, surfaced in /admin
+_config_reloaded_at = None
+
 file_lock = asyncio.Lock()
 config_lock = asyncio.Lock()
 
@@ -147,12 +156,109 @@ def _config_for_disk():
     return out
 
 
+def _parse_config(raw):
+    """Validate a config.json payload and coerce its timestamps.
+
+    Raises on anything malformed so a half-written or fat-fingered file can
+    never replace a working configuration."""
+    if not isinstance(raw, dict):
+        raise ValueError("config.json must contain a JSON object")
+    parsed = dict(raw)
+    for key in TIME_KEYS:
+        value = parsed.get(key)
+        if value in (None, ""):
+            parsed[key] = None
+            continue
+        if isinstance(value, datetime):
+            continue
+        parsed[key] = datetime.fromisoformat(value)
+    for key in ("start_time", "end_time"):
+        if not isinstance(parsed.get(key), datetime):
+            raise ValueError(f"{key} is missing or unparseable")
+    if parsed["end_time"] <= parsed["start_time"]:
+        raise ValueError("end_time must be after start_time")
+    if not parsed.get("lab_name"):
+        raise ValueError("lab_name is missing")
+    return parsed
+
+
+def _load_config_sync():
+    with open(CONFIG_FILE, "r") as f:
+        return _parse_config(json.load(f))
+
+
+def _describe_config_change(old_cfg, new_cfg):
+    fields = list(TIME_KEYS) + ["allowed_subnets", "questions", "admin_token"]
+    for qno in new_cfg.get("questions", []) or []:
+        fields.append(qno)
+    changes = []
+    for key in fields:
+        before, after = old_cfg.get(key), new_cfg.get(key)
+        if before != after:
+            label = "set" if key == "admin_token" else after
+            prior = "set" if key == "admin_token" else before
+            changes.append(f"{key}: {prior} -> {label}")
+    return "; ".join(changes) or "no effective change"
+
+
+async def _maybe_reload_config():
+    """Pick up an edit to config.json made outside the console."""
+    global _config_mtime, _config_checked_at, _config_error, _config_reloaded_at, ADMIN_TOKEN
+
+    now = time.time()
+    if now - _config_checked_at < CONFIG_POLL_INTERVAL:
+        return
+    _config_checked_at = now
+
+    try:
+        mtime = os.stat(CONFIG_FILE).st_mtime_ns
+    except OSError:
+        return
+    if mtime == _config_mtime:
+        return
+
+    async with config_lock:
+        try:
+            mtime = os.stat(CONFIG_FILE).st_mtime_ns
+        except OSError:
+            return
+        if mtime == _config_mtime:
+            return
+        try:
+            fresh = await asyncio.to_thread(_load_config_sync)
+        except Exception as exc:
+            # A truncated save or a JSON typo: keep serving the last good copy
+            # and let the console show what is wrong.
+            if str(exc) != _config_error:
+                print(f"CONFIG: refusing to reload config.json ({exc}). Still using the previous configuration.")
+            _config_error = str(exc)
+            _config_mtime = mtime      # do not re-report until the file changes again
+            return
+
+        summary = _describe_config_change(lab_config, fresh)
+        lab_config.clear()
+        lab_config.update(fresh)
+        _config_mtime = mtime
+        _config_error = None
+        _config_reloaded_at = datetime.now()
+        if not os.environ.get("IG_ADMIN_TOKEN"):
+            ADMIN_TOKEN = (lab_config.get("admin_token") or "").strip() or None
+        if summary != "no effective change":
+            print(f"CONFIG: reloaded config.json from disk -> {summary}")
+            _audit("config_reloaded_from_disk", summary, "file edit")
+
+
 def _persist_config_sync():
     """Atomically rewrite config.json so the Celery worker never reads a torn file."""
     tmp_path = f"{CONFIG_FILE}.tmp"
     with open(tmp_path, "w") as f:
         json.dump(_config_for_disk(), f, indent=4)
     os.replace(tmp_path, CONFIG_FILE)
+    global _config_mtime
+    try:
+        _config_mtime = os.stat(CONFIG_FILE).st_mtime_ns
+    except OSError:
+        _config_mtime = None
 
 
 async def _persist_config():
@@ -183,17 +289,15 @@ def _question_list():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global lab_config, ADMIN_TOKEN
+    global lab_config, ADMIN_TOKEN, _config_mtime
     print("Application starting up...")
 
     print("Loading config.json...")
-    with open(CONFIG_FILE, "r") as f:
-        lab_config = json.load(f)
-        # Parse timestamps into datetime objects
-        lab_config["start_time"] = datetime.fromisoformat(lab_config["start_time"])
-        lab_config["end_time"] = datetime.fromisoformat(lab_config["end_time"])
-        if lab_config.get("pwd_end_time"):
-            lab_config["pwd_end_time"] = datetime.fromisoformat(lab_config["pwd_end_time"])
+    lab_config = _load_config_sync()
+    try:
+        _config_mtime = os.stat(CONFIG_FILE).st_mtime_ns
+    except OSError:
+        _config_mtime = None
 
     print("Loading pwd_students.txt...")
     if os.path.exists(PWD_STUDENTS_FILE):
@@ -254,6 +358,10 @@ def _is_admin_path(path):
 
 
 async def _access_control(request: Request, call_next):
+    # Cheap: one os.stat at most once a second. Lets `nano config.json` on the
+    # server take effect on this very request, no restart needed.
+    await _maybe_reload_config()
+
     client_ip = _client_ip(request)
     request_path = request.url.path
     current_time = datetime.now()
@@ -1159,6 +1267,8 @@ async def admin_overview():
             "disk_free_gb": round(shutil.disk_usage(".").free / 1e9, 2),
             "load_avg": [round(x, 2) for x in os.getloadavg()] if hasattr(os, "getloadavg") else None,
             "debug_mode": DEBUG,
+            "config_error": _config_error,
+            "config_reloaded_at": _config_reloaded_at.strftime("%H:%M:%S") if _config_reloaded_at else None,
         },
     }
 
