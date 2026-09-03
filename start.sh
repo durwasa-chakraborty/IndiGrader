@@ -7,9 +7,24 @@ echo -e "\033[1;36m[*] Starting IndiGrader Server...\033[0m"
 
 # Pre-flight Checks
 echo -e "\033[1;34m[*] Running pre-flight checks...\033[0m"
+if ! command -v jq >/dev/null 2>&1; then
+    echo -e "\033[0;31m[-] ERROR: jq is not installed, and this script needs it to read config.json.\033[0m"
+    echo -e "\033[1;33m    sudo apt install jq        (or: brew install jq)\033[0m"
+    exit 1
+fi
+
 if ! jq empty config.json 2>/dev/null; then
     echo -e "\033[0;31m[-] ERROR: config.json is missing or contains invalid JSON.\033[0m"
     exit 1
+fi
+
+# Grading runs inside firejail. Without it every submission fails its testcases,
+# which looks like the students' code being wrong rather than the server being
+# misconfigured, so say so up front.
+if ! command -v firejail >/dev/null 2>&1; then
+    echo -e "\033[1;33m[!] WARNING: firejail is not installed. grade.sh --sandbox will fail and\033[0m"
+    echo -e "\033[1;33m    every submission will score zero. Install it before the lab:\033[0m"
+    echo -e "\033[1;33m      sudo apt install firejail\033[0m"
 fi
 
 if ! ls statics/*.zip 1> /dev/null 2>&1; then
