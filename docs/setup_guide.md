@@ -154,14 +154,38 @@ Your students can fetch the starter kit directly from the server.
 2. This script retrieves the `ig` command-line tool, downloads the lab package, and registers the workstation's IP address on the server.
 
 ## 7. Last-Minute Config Changes (During the Lab)
-Because performance is critical during peak lab hours, FastAPI loads `config.json` into RAM once at startup rather than reading from disk on every single student request. 
 
-If you need to change the lab time, duration, or memory limits on the fly while the lab is running:
+### The Control Room (recommended)
+Open **`http://<server-ip>:8000/admin`** - the URL is printed by `builder.py` and
+by `start.sh`. It opens from the server itself or from any machine inside
+`allowed_subnets`; there is no separate login.
+
+From there you can, without restarting anything:
+- **Extend the lab** with `+5 / +10 / +15 / +30` buttons, a free-form `±minutes`
+  box, or an exact end time. The new deadline takes effect on the next request,
+  is written back to `config.json`, and is logged in `admin_actions.csv`.
+- Move the **PWD deadline** on its own.
+- Retune a question's **timeout**, **memory cap** or **full marks** - `grade.sh`
+  re-reads `config.json` per submission, so it applies to the next graded run.
+- **Unbind** a student who has moved to a different machine.
+- Watch the queue, the grading workers, live requests, violations and per-student
+  progress while all of this is happening.
+
+See [The Control Room](control_room.md) for the full tour and the equivalent
+`curl` commands.
+
+### Editing `config.json` by hand
+FastAPI loads `config.json` into RAM once at startup rather than reading from disk
+on every student request, so a hand edit needs a FastAPI restart to be noticed:
 1. Edit the `config.json` file directly on the server (e.g., `nano config.json`).
 2. Restart **just** the FastAPI server using this simple one-liner to force it to reload the file into RAM without disrupting the Celery grading queue:
    ```bash
    pkill -f "fastapi run main.py" && fastapi run main.py > logs/fastapi.log 2>&1 &
    ```
+Note that the Control Room writes to the same file, so avoid editing by hand and
+extending from the console at the same time - the console's copy would win on its
+next write.
+
 *(Note: Clients that have previously downloaded the starter kit will retain the prior deadline locally, but the server maintains the authoritative state and will evaluate late submissions according to the updated configuration).*
 
 ## 8. Graceful Shutdown (`stop.sh`)
