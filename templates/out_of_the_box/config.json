@@ -3,6 +3,7 @@
     "lab_name": "<DUMMY_LAB_NAME>",
     "start_time": "<DUMMY_START_TIME>",
     "end_time": "<DUMMY_END_TIME>",
+    "pwd_end_time": null,
     "allowed_subnets": [
         "<DUMMY_SUBNET>"
     ],

@@ -11,6 +11,8 @@ Comprehensive documentation is available in the `docs/` directory:
 - [Architecture](docs/architecture.md)
 - [Technical Specifications](docs/tech_specs.md)
 - [Setup Guide](docs/setup_guide.md)
+- [The Control Room (live monitoring & time extensions)](docs/control_room.md)
+- [COE: L5 lab window outage (2026-09-03)](docs/coe/2026-09-03-L5-lab-window-outage.md)
 - [Student Workflow](docs/student_workflow.md)
 - [Post-Lab & Admin Guide](docs/post_lab_guide.md)
 
@@ -46,6 +48,7 @@ IndiGrader's architecture is guided by the following principles:
 - **Global Resource Injection:** Administrators can configure shared static resources (e.g., header files, databases) that are automatically mounted into all evaluation sandboxes.
 - **Data Packaging:** Submissions involving multiple files or directories are compressed automatically for transmission.
 - **Static Leaderboard:** Generates an offline, static HTML leaderboard reflecting the current grading state without requiring a secondary web framework.
+- **Control Room:** An operations console at `/admin`, restricted to the lab subnet, for extending the lab window, retuning per-question timeouts and marks, and releasing IP bindings while the server is running — alongside live monitoring of the grading queue, worker activity, in-flight requests, violations and per-student progress. Time changes are applied in memory and written back to `config.json`, so no restart is needed.
 
 
 ## Acknowledgments & Adoptions

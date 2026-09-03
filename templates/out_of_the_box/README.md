@@ -25,11 +25,15 @@ pip install -r requirements.txt
 
 ## 3. Configuration
 1. **`config.json`**: Edit the root configuration file to define your lab's parameters.
-   - `start_time` / `end_time`: Enforces strict submission deadlines.
+   - `start_time` / `end_time`: Enforces strict submission deadlines. Both can be
+     changed while the server is running from the Control Room at `/admin`.
+   - `pwd_end_time` *(optional)*: Deadline for the students listed in
+     `pwd_students.txt`. Omit it (or leave it `null`) and they get an open-ended
+     window, which is the historical behaviour.
    - `allowed_subnet`: e.g., `"192.168.1."` to restrict access strictly to the lab's local network.
    - `questions`: List the questions (e.g., `["Q1", "Q2"]`) and their constraints.
    - **Makefile Projects**: To support multi-file projects needing a `Makefile`, set `"makefile": true`. The engine will run `make` on the student's submission. Use `"executable_name": "target_name"` to define what binary the `make` command produces (defaults to the question name, e.g., `Q1`).
-2. **`pwd_students.txt`**: Add the roll numbers of Persons with Disabilities (PwD) students to this file, one per line. This grants them an exemption from the standard lab `end_time` deadline.
+2. **`pwd_students.txt`**: Add the roll numbers of Persons with Disabilities (PwD) students to this file, one per line. This grants them an exemption from the standard lab `end_time` deadline — until `pwd_end_time`, if one is configured.
 
 ## 4. Preparing the Test Cases
 
@@ -137,3 +141,11 @@ To safely shut down the system and ensure all queued gradings are completed befo
 ```bash
 ./stop.sh
 ```
+
+## 8. Watching the Lab (`/admin`)
+`start.sh` prints a **Control Room** URL. Open
+`http://<server-ip>:8000/admin` to extend the lab window, retune a question's
+timeout or marks, unbind a student who changed machines, and watch the grading
+queue, worker activity, live requests, violations and per-student progress —
+all without restarting the server. Full guide:
+[docs/control_room.md](../../docs/control_room.md).

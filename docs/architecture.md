@@ -35,3 +35,27 @@ The primary interface for students is a terminal-based CLI (`ig`). It provides a
 - Identifying the active question via directory context.
 - Packaging and transmitting source files to the server.
 
+### 6. Control Room (`/admin`)
+An operations console served from `admin.html`, backed by the
+`/api/admin/*` routes. It exists because the lab window is state the instructor
+must be able to change mid-session:
+- **Mutable schedule.** `end_time` and `pwd_end_time` are held in the same
+  in-memory `lab_config` the access-control middleware reads, so an extension
+  takes effect on the next request. The console then rewrites `config.json`
+  atomically (temp file plus `rename`), which is what propagates the change to
+  the Celery worker and to `grade.sh` — both of which read the file per task —
+  and what makes it survive a restart.
+- **Live telemetry.** A single HTTP middleware records every student request
+  (in-flight set, ring buffer, per-minute counters); queue depth and the next
+  queued tasks are read directly from the Redis list, and worker activity from
+  `celery.control.inspect`. Filesystem aggregation over `marks.txt` is memoised
+  on `(mtime, size)` so polling stays cheap during a lab.
+- **Access.** Reachability *is* the control: admin routes are always open on
+  loopback and otherwise subject to the same `allowed_subnets` rule as the rest
+  of the server, on the assumption that the lab server sits on a closed network
+  in a controlled room. They are exempt from the lab-ended gate, since that is
+  precisely when an extension is needed. Every mutation is appended to
+  `admin_actions.csv` with the caller's IP.
+
+See [The Control Room](control_room.md) for the operator-facing guide.
+

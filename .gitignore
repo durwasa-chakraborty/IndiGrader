@@ -19,6 +19,10 @@ logs/
 submissions/
 late_submissions/
 *.log
+registrations.csv
+violations.csv
+admin_actions.csv
+config.json.tmp
 
 # --- Rosters & problem statements -------------------------------
 # Real class rosters must not be committed. The template placeholders
