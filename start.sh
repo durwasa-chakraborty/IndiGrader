@@ -43,6 +43,15 @@ fastapi run main.py > logs/fastapi.log 2>&1 &
 echo -e "\033[1;30m   (FastAPI logs available at: logs/fastapi.log)\033[0m"
 
 echo -e "\033[1;32m[+] All services started successfully!\033[0m"
+
+# 4. Surface the Control Room (live monitoring + time extensions)
+LAB_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+if [ -z "$LAB_IP" ]; then LAB_IP=$(ipconfig getifaddr en0 2>/dev/null); fi
+if [ -z "$LAB_IP" ]; then LAB_IP="<server-ip>"; fi
+
+echo -e "\033[1;36m------------------------------------------------------\033[0m"
+echo -e "\033[1;36m[*] CONTROL ROOM: \033[1;33mhttp://$LAB_IP:8000/admin\033[0m"
+echo -e "\033[1;30m   (Extend the lab, watch the queue and track submissions from there.)\033[0m"
 echo -e "\033[1;36m------------------------------------------------------\033[0m"
 echo -e "\033[1;36m[*] To monitor the server, run: tail -f logs/fastapi.log\033[0m"
 echo -e "\033[1;36m[*] To monitor grading, run:    tail -f logs/celery.log\033[0m"

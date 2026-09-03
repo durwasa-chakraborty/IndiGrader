@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IndiGrader Control Room</title>
+<style>
+  :root{
+    color-scheme: dark;
+    --plane:#0b1120;
+    --surface:#131c2e;
+    --surface-2:#1a2438;
+    --line:rgba(255,255,255,.09);
+    --line-strong:rgba(255,255,255,.16);
+    --ink:#f8fafc;
+    --ink-2:#aab6c8;
+    --muted:#7d8aa0;
+    --series:#3987e5;
+    --series-soft:rgba(57,135,229,.18);
+    --good:#0ca30c;
+    --warn:#fab219;
+    --serious:#ec835a;
+    --crit:#d03b3b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    background:var(--plane);
+    color:var(--ink);
+    min-height:100vh;
+    font-size:14px;
+    -webkit-font-smoothing:antialiased;
+  }
+  button,input,select{font:inherit;color:inherit}
+  .wrap{max-width:1500px;margin:0 auto;padding:0 20px 60px}
+
+  /* ---------- top bar ---------- */
+  header.bar{
+    position:sticky;top:0;z-index:40;
+    background:rgba(11,17,32,.88);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+    padding:14px 20px;
+    margin-bottom:22px;
+  }
+  .bar-inner{max-width:1500px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .brand{font-weight:800;letter-spacing:-.02em;font-size:1.15rem;display:flex;align-items:center;gap:9px}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 10px var(--good)}
+  .brand .dot.stale{background:var(--crit);box-shadow:0 0 10px var(--crit)}
+  .bar-spacer{flex:1}
+  .clock{font-variant-numeric:tabular-nums;color:var(--ink-2);font-weight:600}
+  .ctrl{display:flex;align-items:center;gap:8px}
+  select.mini,input.mini{
+    background:var(--surface-2);border:1px solid var(--line);border-radius:8px;
+    padding:6px 9px;font-size:.82rem;
+  }
+  .btn{
+    background:var(--surface-2);border:1px solid var(--line-strong);border-radius:9px;
+    padding:7px 13px;cursor:pointer;font-size:.85rem;font-weight:600;transition:.15s;
+  }
+  .btn:hover{background:#22304a;border-color:var(--series)}
+  .btn.primary{background:var(--series);border-color:var(--series);color:#fff}
+  .btn.primary:hover{background:#2a78d6}
+  .btn.ghost{background:transparent}
+  .btn.danger{border-color:rgba(208,59,59,.5);color:#ff9a9a}
+  .btn.danger:hover{background:rgba(208,59,59,.15);border-color:var(--crit)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.tiny{padding:4px 9px;font-size:.75rem;border-radius:7px}
+
+  /* ---------- pills / chips ---------- */
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:4px 11px;border-radius:999px;font-size:.75rem;font-weight:700;
+    text-transform:uppercase;letter-spacing:.05em;border:1px solid transparent;
+  }
+  .pill.running{background:rgba(12,163,12,.14);color:#5fd35f;border-color:rgba(12,163,12,.35)}
+  .pill.scheduled{background:rgba(57,135,229,.14);color:#7cb2f0;border-color:rgba(57,135,229,.35)}
+  .pill.pwd_window{background:rgba(250,178,25,.14);color:#f5c65c;border-color:rgba(250,178,25,.35)}
+  .pill.ended{background:rgba(208,59,59,.14);color:#f08a8a;border-color:rgba(208,59,59,.35)}
+  .pill.grey{background:rgba(255,255,255,.06);color:var(--ink-2);border-color:var(--line)}
+
+  /* ---------- panels ---------- */
+  .panel{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden;
+  }
+  .panel-head{
+    display:flex;align-items:center;gap:10px;
+    padding:13px 18px;border-bottom:1px solid var(--line);
+  }
+  .panel-head h2{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2)}
+  .panel-head .count{
+    font-size:.7rem;color:var(--muted);background:rgba(255,255,255,.05);
+    padding:2px 8px;border-radius:999px;font-variant-numeric:tabular-nums;
+  }
+  .panel-head .spacer{flex:1}
+  .panel-body{padding:16px 18px}
+  .panel-body.flush{padding:0}
+  .grid{display:grid;gap:16px;margin-bottom:16px}
+  .g-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  @media(max-width:1100px){.g-2,.g-3{grid-template-columns:1fr}}
+
+  /* ---------- clock card ---------- */
+  .clockcard{
+    display:grid;grid-template-columns:minmax(260px,320px) 1fr;gap:26px;
+    padding:20px 22px;
+  }
+  @media(max-width:900px){.clockcard{grid-template-columns:1fr}}
+  .remain-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:6px}
+  .remain{
+    font-size:3.4rem;font-weight:800;letter-spacing:-.03em;line-height:1;
+    font-variant-numeric:tabular-nums;
+  }
+  .remain.warn{color:var(--warn)}
+  .remain.crit{color:var(--crit);animation:beat 1.6s ease-in-out infinite}
+  @keyframes beat{0%,100%{opacity:1}50%{opacity:.55}}
+  .remain-sub{margin-top:9px;color:var(--ink-2);font-size:.85rem;line-height:1.7}
+  .remain-sub b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .track{height:6px;border-radius:999px;background:rgba(255,255,255,.08);margin-top:14px;overflow:hidden}
+  .track i{display:block;height:100%;background:var(--series);border-radius:999px;transition:width .6s ease}
+  .ctl-title{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:9px}
+  .ctl-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .ext-btn{
+    background:var(--series-soft);border:1px solid rgba(57,135,229,.4);color:#a8cbf5;
+    border-radius:9px;padding:9px 16px;font-weight:700;cursor:pointer;transition:.15s;
+  }
+  .ext-btn:hover{background:var(--series);color:#fff;border-color:var(--series)}
+  .ext-btn.armed{background:var(--crit);border-color:var(--crit);color:#fff}
+  .hint{color:var(--muted);font-size:.78rem;line-height:1.6}
+
+  /* ---------- stat tiles ---------- */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:12px;margin-bottom:16px}
+  .tile{
+    background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+  }
+  .tile .k{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:7px;white-space:nowrap}
+  .tile .v{font-size:1.65rem;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .tile .s{font-size:.74rem;color:var(--ink-2);margin-top:5px}
+  .tile.alert{border-color:rgba(250,178,25,.45)}
+  .tile.bad{border-color:rgba(208,59,59,.5)}
+
+  /* ---------- charts ---------- */
+  .chart{height:132px;display:flex;align-items:flex-end;gap:2px;position:relative}
+  .chart .bar{
+    flex:1;min-width:2px;background:var(--series);border-radius:2px 2px 0 0;
+    min-height:2px;transition:height .3s ease;cursor:default;
+  }
+  .chart .bar.zero{background:rgba(255,255,255,.07)}
+  .chart .bar:hover{background:#7cb2f0}
+  .axis{display:flex;justify-content:space-between;color:var(--muted);font-size:.7rem;margin-top:8px;font-variant-numeric:tabular-nums}
+  .chart-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .chart-top .peak{color:var(--muted);font-size:.72rem;font-variant-numeric:tabular-nums}
+  .chart-top .now{font-size:1.5rem;font-weight:800;letter-spacing:-.02em}
+  .chart-top .now span{font-size:.75rem;font-weight:600;color:var(--muted);margin-left:5px;letter-spacing:0}
+
+  /* ---------- pipeline ---------- */
+  .pipe{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0}
+  @media(max-width:900px){.pipe{grid-template-columns:1fr}}
+  .pipe-col{padding:14px 16px;border-right:1px solid var(--line);min-height:190px}
+  .pipe-col:last-child{border-right:none}
+  .pipe-col h3{
+    font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    margin-bottom:11px;display:flex;align-items:center;gap:7px;
+  }
+  .pipe-col h3 b{
+    background:rgba(255,255,255,.07);border-radius:999px;padding:1px 8px;
+    color:var(--ink);font-variant-numeric:tabular-nums;font-size:.72rem;
+  }
+  .card-item{
+    background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
+    padding:8px 11px;margin-bottom:7px;display:flex;align-items:center;gap:9px;font-size:.82rem;
+  }
+  .card-item .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600}
+  .card-item .sp{flex:1}
+  .card-item .age{color:var(--muted);font-size:.74rem;font-variant-numeric:tabular-nums}
+  .empty{color:var(--muted);font-size:.8rem;padding:14px 0;text-align:center}
+
+  /* ---------- tables ---------- */
+  .tbl-scroll{overflow:auto;max-height:430px}
+  table{width:100%;border-collapse:collapse;font-size:.83rem}
+  thead th{
+    position:sticky;top:0;background-color:#162034;z-index:2;
+    text-align:left;padding:10px 14px;font-size:.68rem;text-transform:uppercase;
+    letter-spacing:.07em;color:var(--muted);font-weight:700;white-space:nowrap;
+    border-bottom:1px solid var(--line);
+  }
+  thead th.sortable{cursor:pointer;user-select:none}
+  thead th.sortable:hover{color:var(--ink)}
+  tbody td{padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.045);white-space:nowrap}
+  tbody tr:hover td{background:rgba(255,255,255,.035)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .num{font-variant-numeric:tabular-nums;text-align:right}
+  .dim{color:var(--muted)}
+  .ok{color:#5fd35f}
+  .bad{color:#f08a8a}
+  .warnc{color:#f5c65c}
+  .status-chip{
+    display:inline-block;padding:1px 7px;border-radius:6px;font-size:.72rem;font-weight:700;
+    font-variant-numeric:tabular-nums;
+  }
+  .s2xx{background:rgba(12,163,12,.15);color:#5fd35f}
+  .s4xx{background:rgba(250,178,25,.15);color:#f5c65c}
+  .s403{background:rgba(208,59,59,.15);color:#f08a8a}
+  .s5xx{background:rgba(208,59,59,.25);color:#ff9a9a}
+  .bar-cell{position:relative;min-width:120px}
+  .bar-cell i{
+    position:absolute;left:14px;top:50%;transform:translateY(-50%);height:16px;
+    background:var(--series-soft);border-radius:3px;z-index:0;
+  }
+  .bar-cell span{position:relative;z-index:1}
+  .qedit{
+    width:72px;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:7px;padding:4px 7px;font-size:.8rem;text-align:right;
+    font-variant-numeric:tabular-nums;
+  }
+  .qedit:focus{outline:none;border-color:var(--series)}
+  .qedit.dirty{border-color:var(--warn);background:rgba(250,178,25,.08)}
+  .filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .chip{
+    background:transparent;border:1px solid var(--line);border-radius:999px;
+    padding:4px 11px;font-size:.75rem;cursor:pointer;color:var(--ink-2);
+  }
+  .chip.on{background:var(--series-soft);border-color:var(--series);color:#a8cbf5}
+
+  /* ---------- toast ---------- */
+  #toasts{position:fixed;right:20px;bottom:20px;z-index:120;display:flex;flex-direction:column;gap:9px}
+  .toast{
+    background:var(--surface-2);border:1px solid var(--line-strong);border-left:3px solid var(--series);
+    border-radius:10px;padding:11px 15px;font-size:.85rem;max-width:380px;
+    box-shadow:0 16px 40px rgba(0,0,0,.5);animation:slide .25s ease-out;
+  }
+  .toast.good{border-left-color:var(--good)}
+  .toast.bad{border-left-color:var(--crit)}
+  @keyframes slide{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+  #tip{
+    position:fixed;z-index:130;pointer-events:none;display:none;
+    background:#0a1020;border:1px solid var(--line-strong);border-radius:8px;
+    padding:6px 10px;font-size:.78rem;font-variant-numeric:tabular-nums;
+    box-shadow:0 10px 30px rgba(0,0,0,.55);
+  }
+  .health{display:flex;gap:18px;flex-wrap:wrap;color:var(--ink-2);font-size:.8rem;align-items:center}
+  .health b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .health .sep{width:1px;height:14px;background:var(--line)}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-inner">
+    <div class="brand"><span class="dot" id="liveDot"></span><span id="labName">IndiGrader</span></div>
+    <span class="pill grey" id="statePill">connecting</span>
+    <div class="bar-spacer"></div>
+    <span class="clock" id="serverClock">--:--:--</span>
+    <div class="ctrl">
+      <select class="mini" id="intervalSel">
+        <option value="2000">2s</option>
+        <option value="3000" selected>3s</option>
+        <option value="5000">5s</option>
+        <option value="10000">10s</option>
+      </select>
+      <button class="btn ghost" id="pauseBtn">Pause</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- TIME CONTROL -->
+  <div class="panel" style="margin-bottom:16px">
+    <div class="panel-head">
+      <h2>Lab window</h2>
+      <span class="count" id="extCount">no extensions</span>
+      <div class="spacer"></div>
+      <span class="hint" id="windowText"></span>
+    </div>
+    <div class="clockcard">
+      <div>
+        <div class="remain-label" id="remainLabel">Time remaining</div>
+        <div class="remain" id="remain">--:--:--</div>
+        <div class="track"><i id="track" style="width:0%"></i></div>
+        <div class="remain-sub" id="remainSub"></div>
+      </div>
+      <div>
+        <div class="ctl-title">Extend the lab (applies instantly, no restart)</div>
+        <div class="ctl-row">
+          <button class="ext-btn" data-min="5">+5 min</button>
+          <button class="ext-btn" data-min="10">+10 min</button>
+          <button class="ext-btn" data-min="15">+15 min</button>
+          <button class="ext-btn" data-min="30">+30 min</button>
+          <input class="mini" id="customMin" type="number" step="1" placeholder="±min" style="width:88px">
+          <button class="btn" id="customBtn">Apply</button>
+        </div>
+        <div class="ctl-title">Or set an exact end time</div>
+        <div class="ctl-row">
+          <input class="mini" id="absEnd" type="datetime-local" step="1">
+          <button class="btn" id="absBtn">Set end time</button>
+        </div>
+        <div class="ctl-row" id="pwdRow">
+          <span class="ctl-title" style="margin:0 4px 0 0">PWD deadline</span>
+          <span class="hint" id="pwdText">not configured</span>
+          <button class="btn tiny" data-pwd="15">+15</button>
+          <button class="btn tiny" data-pwd="30">+30</button>
+        </div>
+        <p class="hint">Extensions are written straight into <code>config.json</code>, so the
+          Celery worker and <code>grade.sh</code> pick them up too, and they survive a restart.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TILES -->
+  <div class="tiles" id="tiles"></div>
+
+  <!-- CHARTS -->
+  <div class="grid g-2">
+    <div class="panel">
+      <div class="panel-head"><h2>Graded submissions per minute</h2><div class="spacer"></div><span class="count">last 45 min</span></div>
+      <div class="panel-body">
+        <div class="chart-top">
+          <div class="now" id="subNow">0<span>this minute</span></div>
+          <div class="peak" id="subPeak"></div>
+        </div>
+        <div class="chart" id="subChart"></div>
+        <div class="axis" id="subAxis"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>HTTP requests per minute</h2><div class="spacer"></div><span class="count">last 45 min</span></div>
+      <div class="panel-body">
+        <div class="chart-top">
+          <div class="now" id="reqNow">0<span>this minute</span></div>
+          <div class="peak" id="reqPeak"></div>
+        </div>
+        <div class="chart" id="reqChart"></div>
+        <div class="axis" id="reqAxis"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIPELINE -->
+  <div class="panel" style="margin-bottom:16px">
+    <div class="panel-head">
+      <h2>Request pipeline</h2>
+      <div class="spacer"></div>
+      <span class="hint" id="brokerHealth"></span>
+    </div>
+    <div class="pipe">
+      <div class="pipe-col">
+        <h3>In flight (HTTP) <b id="cInflight">0</b></h3>
+        <div id="inflightList"></div>
+      </div>
+      <div class="pipe-col">
+        <h3>Queued - next up <b id="cQueued">0</b></h3>
+        <div id="queueList"></div>
+      </div>
+      <div class="pipe-col">
+        <h3>Grading now <b id="cActive">0</b></h3>
+        <div id="activeList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUESTIONS -->
+  <div class="panel" style="margin-bottom:16px">
+    <div class="panel-head">
+      <h2>Questions</h2>
+      <div class="spacer"></div>
+      <span class="hint">Timeout / memory / marks apply to the next graded submission</span>
+    </div>
+    <div class="panel-body flush">
+      <div class="tbl-scroll" style="max-height:none">
+        <table>
+          <thead><tr>
+            <th>Question</th><th class="num">Attempts</th><th class="num">Students</th>
+            <th class="num">Avg best</th><th class="num">Top</th><th class="num">Full marks</th>
+            <th class="num">Timeout (s)</th><th class="num">Memory (MB)</th><th class="num">Max marks</th><th></th>
+          </tr></thead>
+          <tbody id="qBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEEDS -->
+  <div class="grid g-2">
+    <div class="panel">
+      <div class="panel-head"><h2>Recent grading results</h2><div class="spacer"></div><span class="count" id="gradedCount"></span></div>
+      <div class="panel-body flush"><div class="tbl-scroll">
+        <table><thead><tr><th>Time</th><th>Roll</th><th>Q</th><th class="num">Marks</th><th></th></tr></thead>
+        <tbody id="gradedBody"></tbody></table>
+      </div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Live request log</h2><div class="spacer"></div><span class="count" id="reqCount"></span></div>
+      <div class="panel-body flush"><div class="tbl-scroll">
+        <table><thead><tr><th>Time</th><th>Status</th><th>Method</th><th>Path</th><th>Roll / IP</th><th class="num">ms</th></tr></thead>
+        <tbody id="reqBody"></tbody></table>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- STUDENTS -->
+  <div class="panel" style="margin-bottom:16px">
+    <div class="panel-head">
+      <h2>Students</h2>
+      <span class="count" id="studentCount"></span>
+      <div class="spacer"></div>
+      <div class="filters">
+        <input class="mini" id="studentSearch" placeholder="search roll…" style="width:150px">
+        <button class="chip" data-filter="all">All</button>
+        <button class="chip" data-filter="unregistered">Never fetched</button>
+        <button class="chip" data-filter="nosub">No submission</button>
+        <button class="chip" data-filter="pwd">PWD</button>
+        <button class="chip" data-filter="late">Late</button>
+      </div>
+    </div>
+    <div class="panel-body flush"><div class="tbl-scroll">
+      <table>
+        <thead><tr id="stHead"></tr></thead>
+        <tbody id="stBody"></tbody>
+      </table>
+    </div></div>
+  </div>
+
+  <!-- VIOLATIONS + AUDIT -->
+  <div class="grid g-2">
+    <div class="panel">
+      <div class="panel-head"><h2>Violations</h2><div class="spacer"></div><span class="count" id="vioCount"></span></div>
+      <div class="panel-body flush"><div class="tbl-scroll" style="max-height:300px">
+        <table><thead><tr><th>Time</th><th>Type</th><th>Roll</th><th>Expected IP</th><th>Actual IP</th></tr></thead>
+        <tbody id="vioBody"></tbody></table>
+      </div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Admin actions</h2><div class="spacer"></div><span class="count" id="auditCount"></span></div>
+      <div class="panel-body flush"><div class="tbl-scroll" style="max-height:300px">
+        <table><thead><tr><th>Time</th><th>Action</th><th>Detail</th><th>From</th></tr></thead>
+        <tbody id="auditBody"></tbody></table>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- HEALTH -->
+  <div class="panel">
+    <div class="panel-head"><h2>Server health</h2></div>
+    <div class="panel-body"><div class="health" id="healthRow"></div></div>
+  </div>
+
+</div>
+
+<div id="toasts"></div>
+<div id="tip"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const S = {
+    interval: 3000,
+    paused: false,
+    data: null,
+    offset: 0,            // serverTime - clientTime, ms
+    filter: 'all',
+    search: '',
+    sort: {key:'total', dir:-1},
+    armed: null,          // pending confirm for a destructive time change
+    timer: null,
+    failures: 0
+  };
+
+  /* ---------------- helpers ---------------- */
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function hms(sec){
+    const neg = sec < 0; sec = Math.abs(Math.round(sec));
+    const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+    return (neg?'-':'') + (h>0 ? h+':'+pad(m)+':'+pad(s) : pad(m)+':'+pad(s));
+  }
+  function ago(sec){
+    if (sec == null) return '-';
+    if (sec < 60) return Math.round(sec)+'s ago';
+    if (sec < 3600) return Math.round(sec/60)+'m ago';
+    return Math.round(sec/3600)+'h ago';
+  }
+  function stampTime(stamp){           // 20260903-141530 -> 14:15:30
+    if (!stamp || stamp.length < 15) return esc(stamp || '-');
+    return stamp.slice(9,11)+':'+stamp.slice(11,13)+':'+stamp.slice(13,15);
+  }
+  function toast(msg, kind){
+    const el = document.createElement('div');
+    el.className = 'toast ' + (kind || '');
+    el.textContent = msg;
+    $('toasts').appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition='opacity .3s'; }, 3600);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  /* ---------------- api ---------------- */
+  async function api(path, opts){
+    opts = opts || {};
+    const headers = opts.body ? {'Content-Type': 'application/json'} : {};
+    const res = await fetch('/api/admin' + path, {...opts, headers, cache:'no-store'});
+    if (res.ok === false && res.status === 403){
+      throw new Error('This machine is not allowed to reach the console (check allowed_subnets).');
+    }
+    if (!res.ok){
+      let detail = res.statusText;
+      try { detail = (await res.json()).detail || detail; } catch(e){}
+      throw new Error(detail);
+    }
+    return res.json();
+  }
+
+  /* ---------------- polling ---------------- */
+  async function tick(){
+    clearTimeout(S.timer);
+    try {
+      const data = await api('/overview');
+      S.data = data;
+      S.offset = new Date(data.server_time).getTime() - Date.now();
+      S.failures = 0;
+      $('liveDot').classList.remove('stale');
+      render(data);
+    } catch(err){
+      S.failures++;
+      $('liveDot').classList.add('stale');
+      if (S.failures === 1) toast('Lost contact with the server: ' + err.message, 'bad');
+    }
+    if (!S.paused) S.timer = setTimeout(tick, S.interval);
+  }
+  $('intervalSel').addEventListener('change', e => { S.interval = +e.target.value; tick(); });
+  $('pauseBtn').addEventListener('click', () => {
+    S.paused = !S.paused;
+    $('pauseBtn').textContent = S.paused ? 'Resume' : 'Pause';
+    $('pauseBtn').classList.toggle('primary', S.paused);
+    if (!S.paused) tick();
+  });
+
+  /* ---------------- time controls ---------------- */
+  async function shiftTime(minutes, btn){
+    // Shortening the lab is the one destructive action here: make it two clicks.
+    if (minutes < 0 && S.armed !== btn){
+      if (S.armed) S.armed.classList.remove('armed');
+      S.armed = btn;
+      if (btn){ btn.classList.add('armed'); btn.dataset.label = btn.textContent; btn.textContent = 'Confirm?'; }
+      setTimeout(disarm, 4000);
+      return;
+    }
+    disarm();
+    try {
+      const out = await api('/time', {method:'POST', body: JSON.stringify({minutes, apply_to_pwd:true})});
+      toast((minutes > 0 ? 'Extended by ' : 'Shortened by ') + Math.abs(out.shifted_minutes) +
+            ' min - new end ' + out.end_time.replace('T',' '), 'good');
+      tick();
+    } catch(err){ toast('Could not change the end time: ' + err.message, 'bad'); }
+  }
+  function disarm(){
+    if (S.armed){
+      if (S.armed.dataset.label) S.armed.textContent = S.armed.dataset.label;
+      S.armed.classList.remove('armed');
+      S.armed = null;
+    }
+  }
+  document.querySelectorAll('.ext-btn[data-min]').forEach(btn => {
+    btn.addEventListener('click', () => shiftTime(+btn.dataset.min, btn));
+  });
+  $('customBtn').addEventListener('click', () => {
+    const value = parseFloat($('customMin').value);
+    if (!isFinite(value) || value === 0){ toast('Enter a non-zero number of minutes.', 'bad'); return; }
+    shiftTime(value, $('customBtn'));
+  });
+  $('absBtn').addEventListener('click', async () => {
+    const value = $('absEnd').value;
+    if (!value){ toast('Pick a date and time first.', 'bad'); return; }
+    try {
+      const out = await api('/time', {method:'POST', body: JSON.stringify({end_time: value, apply_to_pwd:true})});
+      toast('End time set to ' + out.end_time.replace('T',' '), 'good');
+      tick();
+    } catch(err){ toast('Could not set the end time: ' + err.message, 'bad'); }
+  });
+  document.querySelectorAll('[data-pwd]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      try {
+        const out = await api('/pwd-time', {method:'POST', body: JSON.stringify({minutes:+btn.dataset.pwd})});
+        toast('PWD deadline now ' + out.pwd_end_time.replace('T',' '), 'good');
+        tick();
+      } catch(err){ toast('Could not change the PWD deadline: ' + err.message, 'bad'); }
+    });
+  });
+
+  /* ---------------- charts ---------------- */
+  const tip = $('tip');
+  function drawChart(host, axis, series, unit){
+    const peak = Math.max(1, ...series.map(p => p.n));
+    host.innerHTML = series.map(p => {
+      const h = Math.max(2, Math.round(p.n / peak * 100));
+      return '<div class="bar' + (p.n ? '' : ' zero') + '" style="height:' + h + '%"' +
+             ' data-l="' + esc(p.t + ' · ' + p.n + ' ' + unit) + '"></div>';
+    }).join('');
+    axis.innerHTML = '<span>' + esc(series[0].t) + '</span>' +
+                     '<span>' + esc(series[Math.floor(series.length/2)].t) + '</span>' +
+                     '<span>now</span>';
+    return peak;
+  }
+  document.addEventListener('mouseover', e => {
+    const bar = e.target.closest('.chart .bar');
+    if (!bar) return;
+    tip.textContent = bar.dataset.l;
+    tip.style.display = 'block';
+  });
+  document.addEventListener('mousemove', e => {
+    if (tip.style.display !== 'block') return;
+    tip.style.left = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 10) + 'px';
+    tip.style.top = (e.clientY - 34) + 'px';
+  });
+  document.addEventListener('mouseout', e => {
+    if (e.target.closest('.chart .bar')) tip.style.display = 'none';
+  });
+
+  /* ---------------- countdown (ticks between polls) ---------------- */
+  function paintCountdown(){
+    if (!S.data) return;
+    const lab = S.data.lab;
+    const now = Date.now() + S.offset;
+    $('serverClock').textContent = new Date(now).toTimeString().slice(0,8);
+
+    const end = new Date(lab.end_time).getTime();
+    const start = new Date(lab.start_time).getTime();
+    const left = (end - now) / 1000;
+    const el = $('remain');
+    el.classList.toggle('warn', left > 0 && left <= 600);
+    el.classList.toggle('crit', left > 0 && left <= 120);
+
+    if (left > 0){
+      $('remainLabel').textContent = 'Time remaining';
+      el.textContent = hms(left);
+    } else if (lab.pwd_end_time && new Date(lab.pwd_end_time).getTime() > now){
+      $('remainLabel').textContent = 'Main window closed - PWD time left';
+      el.textContent = hms((new Date(lab.pwd_end_time).getTime() - now) / 1000);
+    } else {
+      $('remainLabel').textContent = 'Lab ended';
+      el.textContent = '-' + hms(Math.abs(left));
+    }
+
+    const frac = Math.min(Math.max((now - start) / Math.max(end - start, 1), 0), 1);
+    $('track').style.width = (frac * 100).toFixed(1) + '%';
+  }
+  setInterval(paintCountdown, 250);
+
+  /* ---------------- render ---------------- */
+  function render(d){
+    const lab = d.lab, q = d.queue, t = d.traffic, c = d.counts;
+    // Tolerate an older main.py that predates the "waiting" field, in case only
+    // admin.html was copied into an existing lab package.
+    if (q.waiting == null) q.waiting = (q.pending || 0) + (q.reserved || 0);
+
+    $('labName').textContent = 'IndiGrader · ' + (lab.name || 'lab');
+    const pill = $('statePill');
+    pill.className = 'pill ' + lab.state;
+    pill.textContent = {running:'live', scheduled:'not started', pwd_window:'pwd extra time', ended:'ended'}[lab.state] || lab.state;
+
+    $('windowText').textContent = lab.start_time.replace('T',' ') + '  →  ' + lab.end_time.replace('T',' ');
+    const exts = lab.extensions || [];
+    const shifted = exts.reduce((a,e) => a + (e.minutes || 0), 0);
+    $('extCount').textContent = exts.length
+      ? exts.length + ' change' + (exts.length>1?'s':'') + ' · ' + (shifted>0?'+':'') + Math.round(shifted) + ' min'
+      : 'no extensions';
+
+    $('remainSub').innerHTML =
+      'Started <b>' + esc(lab.start_time.slice(11)) + '</b> · ends <b>' + esc(lab.end_time.slice(11)) +
+      '</b> · planned <b>' + lab.duration_minutes + '</b> min' +
+      (lab.pwd_end_time ? '<br>PWD deadline <b>' + esc(lab.pwd_end_time.slice(11)) + '</b>' : '');
+    $('pwdText').textContent = lab.pwd_end_time
+      ? 'ends ' + lab.pwd_end_time.replace('T',' ')
+      : 'not configured - PWD students currently have no cut-off';
+    if (!$('absEnd').value) $('absEnd').value = lab.end_time;
+
+    // tiles
+    const notRegistered = c.class_size - c.registered;
+    $('tiles').innerHTML = [
+      tile('Registered', c.registered + '<span style="font-size:.9rem;color:var(--muted)"> / ' + c.class_size + '</span>',
+           notRegistered > 0 ? notRegistered + ' never fetched' : 'whole class fetched', notRegistered > 0 ? 'alert' : ''),
+      tile('Submitted', c.submitted, (c.registered - c.submitted) + ' registered, no submission'),
+      tile('Attempts', c.attempts, c.late ? c.late + ' late' : 'no late submissions'),
+      tile('Queued', q.waiting,
+           q.reserved ? q.pending + ' in broker · ' + q.reserved + ' prefetched' : 'waiting to grade',
+           q.waiting > 20 ? 'alert' : ''),
+      tile('Grading now', q.active, (q.workers.length || 0) + ' worker' + (q.workers.length === 1 ? '' : 's')),
+      tile('In flight', t.inflight, 'HTTP requests open'),
+      tile('Requests/min', t.rpm, t.total + ' total · ' + t.blocked + ' blocked'),
+      tile('Violations', c.violations, c.violations ? 'check the feed' : 'none logged', c.violations ? 'bad' : '')
+    ].join('');
+
+    // charts
+    const subPeak = drawChart($('subChart'), $('subAxis'), d.activity, 'graded');
+    $('subNow').innerHTML = (d.activity[d.activity.length-1].n) + '<span>this minute</span>';
+    $('subPeak').textContent = 'peak ' + subPeak + '/min';
+    const reqPeak = drawChart($('reqChart'), $('reqAxis'), t.timeline, 'requests');
+    $('reqNow').innerHTML = t.rpm + '<span>this minute</span>';
+    $('reqPeak').textContent = 'peak ' + reqPeak + '/min';
+
+    // pipeline
+    $('cInflight').textContent = t.inflight;
+    $('cQueued').textContent = q.waiting;
+    $('cActive').textContent = q.active;
+    $('brokerHealth').innerHTML =
+      dotLabel(q.redis_ok, 'Redis') + ' &nbsp; ' + dotLabel(q.celery_ok, 'Celery') +
+      (q.error ? ' &nbsp; <span class="bad">' + esc(q.error) + '</span>' : '');
+
+    $('inflightList').innerHTML = t.inflight_requests.length ? t.inflight_requests.map(r =>
+      '<div class="card-item"><span class="mono">' + esc(r.method) + '</span>' +
+      '<span class="dim" style="overflow:hidden;text-overflow:ellipsis">' + esc(r.path) + '</span>' +
+      '<span class="sp"></span><span class="age">' + r.age_ms + 'ms</span></div>'
+    ).join('') : '<div class="empty">Nothing in flight</div>';
+
+    $('queueList').innerHTML = q.upcoming.length ? q.upcoming.map((item, i) =>
+      '<div class="card-item"><span class="dim">#' + (i+1) + '</span>' +
+      '<span class="mono">' + esc(item.roll || '?') + '</span>' +
+      '<span class="dim">' + esc(item.qno || '') + '</span><span class="sp"></span>' +
+      (item.late ? '<span class="status-chip s4xx">late</span> ' : '') +
+      '<span class="age" title="' +
+        (item.where === 'prefetched' ? 'claimed by a worker, waiting for a free slot' : 'still in the Redis queue') +
+        '">' + esc(item.where || '') + '</span></div>'
+    ).join('') + (q.waiting > q.upcoming.length
+        ? '<div class="empty">+ ' + (q.waiting - q.upcoming.length) + ' more waiting</div>' : '')
+      : '<div class="empty">Queue is empty</div>';
+
+    $('activeList').innerHTML = q.active_tasks.length ? q.active_tasks.map(task =>
+      '<div class="card-item"><span class="mono">' + esc(task.roll || '?') + '</span>' +
+      '<span class="dim">' + esc(task.qno || '') + '</span><span class="sp"></span>' +
+      '<span class="age">' + (task.running_for != null ? task.running_for + 's' : '') + '</span></div>'
+    ).join('') : '<div class="empty">No submission being graded</div>';
+
+    renderQuestions(d.questions);
+    renderStudents(d);
+
+    // feeds
+    const graded = d.feeds.graded;
+    $('gradedCount').textContent = graded.length + ' shown';
+    $('gradedBody').innerHTML = graded.length ? graded.map(e =>
+      '<tr><td class="mono dim">' + stampTime(e.stamp) + '</td>' +
+      '<td class="mono">' + esc(e.roll) + '</td><td>' + esc(e.qno) + '</td>' +
+      '<td class="num">' + e.marks + '</td>' +
+      '<td>' + (e.late ? '<span class="status-chip s4xx">late</span>' : '') + '</td></tr>'
+    ).join('') : emptyRow(5, 'No graded submissions yet');
+
+    const reqs = d.feeds.requests;
+    $('reqCount').textContent = reqs.length + ' shown';
+    $('reqBody').innerHTML = reqs.length ? reqs.map(r =>
+      '<tr><td class="mono dim">' + esc(r.time) + '</td>' +
+      '<td><span class="status-chip ' + statusClass(r.status) + '">' + r.status + '</span></td>' +
+      '<td class="mono">' + esc(r.method) + '</td>' +
+      '<td class="mono" style="max-width:280px;overflow:hidden;text-overflow:ellipsis">' + esc(r.path) + '</td>' +
+      '<td class="mono">' + esc(r.roll || r.ip) + '</td>' +
+      '<td class="num dim">' + r.ms + '</td></tr>'
+    ).join('') : emptyRow(6, 'No student traffic yet');
+
+    const vios = d.feeds.violations;
+    $('vioCount').textContent = c.violations + ' total';
+    $('vioBody').innerHTML = vios.length ? vios.map(v =>
+      '<tr><td class="mono dim">' + esc((v.timestamp||'').slice(11,19)) + '</td>' +
+      '<td class="warnc">' + esc(v.type) + '</td><td class="mono">' + esc(v.roll) + '</td>' +
+      '<td class="mono dim">' + esc(v.expected_ip) + '</td><td class="mono">' + esc(v.actual_ip) + '</td></tr>'
+    ).join('') : emptyRow(5, 'No violations logged');
+
+    const audit = d.feeds.admin_actions;
+    $('auditCount').textContent = audit.length + ' recent';
+    $('auditBody').innerHTML = audit.length ? audit.map(a =>
+      '<tr><td class="mono dim">' + esc((a.timestamp||'').slice(11,19)) + '</td>' +
+      '<td>' + esc(a.action) + '</td><td class="dim">' + esc(a.detail) + '</td>' +
+      '<td class="mono dim">' + esc(a.actor_ip) + '</td></tr>'
+    ).join('') : emptyRow(4, 'No admin actions yet');
+
+    const h = d.health;
+    $('healthRow').innerHTML =
+      'Uptime <b>' + hms(h.uptime_seconds) + '</b><span class="sep"></span>' +
+      'Disk free <b>' + h.disk_free_gb + ' GB</b><span class="sep"></span>' +
+      (h.load_avg ? 'Load <b>' + h.load_avg.join(' / ') + '</b><span class="sep"></span>' : '') +
+      'Workers <b>' + (q.workers.join(', ') || 'none') + '</b><span class="sep"></span>' +
+      'Subnets <b>' + esc((lab.allowed_subnets||[]).join(', ') || 'any') + '</b>' +
+      (h.debug_mode ? '<span class="sep"></span><span class="bad">DEBUG MODE - access control is off</span>' : '');
+  }
+
+  function tile(k, v, s, cls){
+    return '<div class="tile ' + (cls||'') + '"><div class="k">' + k + '</div>' +
+           '<div class="v">' + v + '</div><div class="s">' + (s||'') + '</div></div>';
+  }
+  function dotLabel(ok, label){
+    return '<span style="color:' + (ok ? 'var(--good)' : 'var(--crit)') + '">●</span> ' + label +
+           ' ' + (ok ? 'up' : 'down');
+  }
+  function statusClass(code){
+    if (code === 403) return 's403';
+    if (code >= 500) return 's5xx';
+    if (code >= 400) return 's4xx';
+    return 's2xx';
+  }
+  function emptyRow(cols, text){
+    return '<tr><td colspan="' + cols + '" class="empty">' + text + '</td></tr>';
+  }
+
+  /* ---------------- questions (editable) ---------------- */
+  function renderQuestions(questions){
+    const body = $('qBody');
+    const focused = document.activeElement;
+    body.innerHTML = questions.map(q =>
+      '<tr data-q="' + esc(q.qno) + '">' +
+      '<td class="mono" style="font-weight:700">' + esc(q.qno) + '</td>' +
+      '<td class="num">' + q.attempts + '</td>' +
+      '<td class="num">' + q.students + '</td>' +
+      '<td class="num bar-cell"><i style="width:' +
+        (q.full_marks ? Math.min(100, q.avg / q.full_marks * 100) : 0) + '%"></i><span>' + q.avg + '</span></td>' +
+      '<td class="num">' + q.max + '</td>' +
+      '<td class="num dim">' + q.full_marks + '</td>' +
+      '<td class="num"><input class="qedit" data-f="timeout" type="number" step="0.5" min="0.1" value="' + (q.timeout ?? '') + '"></td>' +
+      '<td class="num"><input class="qedit" data-f="memory_cap_mb" type="number" step="64" min="16" value="' + (q.memory_cap_mb ?? '') + '"></td>' +
+      '<td class="num"><input class="qedit" data-f="full_marks" type="number" step="1" min="0" value="' + q.full_marks + '"></td>' +
+      '<td><button class="btn tiny" data-save="' + esc(q.qno) + '">Save</button></td></tr>'
+    ).join('');
+    // Don't yank a value out from under someone mid-edit.
+    if (focused && focused.classList && focused.classList.contains('qedit')){
+      const row = focused.closest('tr');
+      const qno = row && row.dataset.q;
+      const field = focused.dataset.f;
+      const replacement = body.querySelector('tr[data-q="' + qno + '"] .qedit[data-f="' + field + '"]');
+      if (replacement){ replacement.value = focused.value; replacement.classList.add('dirty'); replacement.focus(); }
+    }
+  }
+  $('qBody').addEventListener('input', e => {
+    if (e.target.classList.contains('qedit')) e.target.classList.add('dirty');
+  });
+  $('qBody').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-save]');
+    if (!btn) return;
+    const qno = btn.dataset.save;
+    const row = btn.closest('tr');
+    const payload = {};
+    row.querySelectorAll('.qedit').forEach(input => {
+      if (input.value !== '') payload[input.dataset.f] = parseFloat(input.value);
+    });
+    btn.disabled = true;
+    try {
+      await api('/questions/' + encodeURIComponent(qno), {method:'POST', body: JSON.stringify(payload)});
+      row.querySelectorAll('.qedit').forEach(i => i.classList.remove('dirty'));
+      toast(qno + ' updated - applies to the next graded submission', 'good');
+      tick();
+    } catch(err){ toast('Could not update ' + qno + ': ' + err.message, 'bad'); }
+    btn.disabled = false;
+  });
+
+  /* ---------------- students ---------------- */
+  document.querySelectorAll('.chip[data-filter]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      S.filter = chip.dataset.filter;
+      document.querySelectorAll('.chip[data-filter]').forEach(c => c.classList.toggle('on', c === chip));
+      if (S.data) renderStudents(S.data);
+    });
+  });
+  document.querySelector('.chip[data-filter="all"]').classList.add('on');
+  $('studentSearch').addEventListener('input', e => {
+    S.search = e.target.value.trim().toUpperCase();
+    if (S.data) renderStudents(S.data);
+  });
+
+  function renderStudents(d){
+    const questions = d.questions.map(q => q.qno);
+    let rows = d.students.slice();
+
+    if (S.filter === 'unregistered') rows = rows.filter(r => !r.registered);
+    else if (S.filter === 'nosub')    rows = rows.filter(r => r.attempts === 0);
+    else if (S.filter === 'pwd')      rows = rows.filter(r => r.pwd);
+    else if (S.filter === 'late')     rows = rows.filter(r => r.late > 0);
+    if (S.search) rows = rows.filter(r => r.roll.includes(S.search));
+
+    const key = S.sort.key, dir = S.sort.dir;
+    rows.sort((a, b) => {
+      let x = key.startsWith('q:') ? (a.scores[key.slice(2)] ?? -1) : a[key];
+      let y = key.startsWith('q:') ? (b.scores[key.slice(2)] ?? -1) : b[key];
+      if (typeof x === 'string' || typeof y === 'string') return String(x).localeCompare(String(y)) * dir;
+      return ((x ?? -1) - (y ?? -1)) * dir;
+    });
+
+    $('studentCount').textContent = rows.length + ' of ' + d.students.length;
+    $('stHead').innerHTML =
+      th('roll','Roll') + th('registered','Bound IP') + th('attempts','Attempts','num') +
+      questions.map(q => th('q:'+q, q, 'num')).join('') +
+      th('total','Total','num') + th('last','Last submission') + th('idle_seconds','Last seen') + '<th></th>';
+
+    $('stBody').innerHTML = rows.length ? rows.map(r =>
+      '<tr><td class="mono" style="font-weight:600">' + esc(r.roll) +
+        (r.pwd ? ' <span class="status-chip s4xx">PWD</span>' : '') +
+        (!r.in_class ? ' <span class="status-chip s403">not in list</span>' : '') + '</td>' +
+      '<td class="mono ' + (r.ip ? 'dim' : 'bad') + '">' + esc(r.ip || 'never fetched') + '</td>' +
+      '<td class="num ' + (r.attempts ? '' : 'dim') + '">' + r.attempts +
+        (r.late ? ' <span class="status-chip s4xx">' + r.late + ' late</span>' : '') + '</td>' +
+      questions.map(q => '<td class="num ' + (r.scores[q] == null ? 'dim' : '') + '">' +
+        (r.scores[q] == null ? '-' : r.scores[q]) + '</td>').join('') +
+      '<td class="num" style="font-weight:700">' + r.total + '</td>' +
+      '<td class="mono dim">' + (r.last ? stampTime(r.last) : '-') + '</td>' +
+      '<td class="dim">' + ago(r.idle_seconds) + '</td>' +
+      '<td>' + (r.ip ? '<button class="btn tiny danger" data-unbind="' + esc(r.roll) + '">Unbind</button>' : '') + '</td></tr>'
+    ).join('') : emptyRow(questions.length + 7, 'No students match this filter');
+  }
+  function th(key, label, cls){
+    const active = S.sort.key === key;
+    return '<th class="sortable ' + (cls||'') + '" data-sort="' + esc(key) + '">' + esc(label) +
+           (active ? (S.sort.dir < 0 ? ' ↓' : ' ↑') : '') + '</th>';
+  }
+  $('stHead').addEventListener('click', e => {
+    const th = e.target.closest('[data-sort]');
+    if (!th) return;
+    const key = th.dataset.sort;
+    S.sort = {key, dir: S.sort.key === key ? -S.sort.dir : -1};
+    if (S.data) renderStudents(S.data);
+  });
+  $('stBody').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-unbind]');
+    if (!btn) return;
+    const roll = btn.dataset.unbind;
+    if (btn.dataset.armed !== '1'){
+      btn.dataset.armed = '1';
+      btn.textContent = 'Confirm';
+      setTimeout(() => { btn.dataset.armed = '0'; btn.textContent = 'Unbind'; }, 4000);
+      return;
+    }
+    try {
+      const out = await api('/unbind', {method:'POST', body: JSON.stringify({roll})});
+      toast(roll + ' released from ' + out.released_ip + ' - they can fetch again', 'good');
+      tick();
+    } catch(err){ toast('Could not unbind ' + roll + ': ' + err.message, 'bad'); }
+  });
+
+  /* ---------------- boot ---------------- */
+  tick();
+})();
+</script>
+</body>
+</html>

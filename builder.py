@@ -498,6 +498,9 @@ def main():
     config["lab_name"] = lab_name
     config["start_time"] = start_dt.isoformat()
     config["end_time"] = end_dt.isoformat()
+    # PWD students keep submitting until this moment. Leave it out and they get
+    # an open-ended window, which is how IndiGrader behaved before.
+    config["pwd_end_time"] = (end_dt + timedelta(minutes=pwd_extra)).isoformat() if pwd_extra > 0 else None
     config["allowed_subnets"] = allowed_subnets
     config["questions"] = [f"Q{i}" for i in range(1, num_q + 1)]
     
@@ -643,6 +646,16 @@ def main():
 
     print(GREEN + f"\n[+] Success! {zip_filename}.zip and {zip_filename}/ folder have been generated in Labs/." + RESET)
     print(CYAN + "[*] You can inspect the folder for last minute checks, and transfer the zip to the lab server." + RESET)
+
+    print(CYAN + "\n" + "=" * 60)
+    print("  CONTROL ROOM (live monitoring + time extensions)")
+    print("=" * 60 + RESET)
+    print(f"  URL : {YELLOW}http://{server_ip}:8000/admin{RESET}")
+    if pwd_extra > 0:
+        print(f"  PWD students may submit until {end_dt + timedelta(minutes=pwd_extra):%H:%M} "
+              f"({pwd_extra} min past the end).")
+    print(CYAN + "  Extend the lab, retune a question and watch the queue from there." + RESET)
+    print(CYAN + f"  Reachable from the server itself and from {', '.join(allowed_subnets)}" + RESET)
 
 if __name__ == "__main__":
     main()
