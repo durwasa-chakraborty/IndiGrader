@@ -48,7 +48,7 @@ IndiGrader's architecture is guided by the following principles:
 - **Global Resource Injection:** Administrators can configure shared static resources (e.g., header files, databases) that are automatically mounted into all evaluation sandboxes.
 - **Data Packaging:** Submissions involving multiple files or directories are compressed automatically for transmission.
 - **Static Leaderboard:** Generates an offline, static HTML leaderboard reflecting the current grading state without requiring a secondary web framework.
-- **Control Room:** An operations console at `/admin`, restricted to the lab subnet, for extending the lab window, retuning per-question timeouts and marks, and releasing IP bindings while the server is running - alongside live monitoring of the grading queue, worker activity, in-flight requests, violations and per-student progress. Time changes are applied in memory and written back to `config.json`, so no restart is needed.
+- **Control Room:** An operations console at `/admin`, restricted to the lab subnet and optionally to an admin token, for extending the lab window, retuning per-question timeouts and marks, and releasing IP bindings while the server is running - alongside live monitoring of the grading queue, worker activity, in-flight requests, violations and per-student progress. Time changes are applied in memory and written back to `config.json`, so no restart is needed.
 
 
 ## Acknowledgments & Adoptions

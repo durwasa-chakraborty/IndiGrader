@@ -51,6 +51,12 @@ if [ -z "$LAB_IP" ]; then LAB_IP="<server-ip>"; fi
 
 echo -e "\033[1;36m------------------------------------------------------\033[0m"
 echo -e "\033[1;36m[*] CONTROL ROOM: \033[1;33mhttp://$LAB_IP:8000/admin\033[0m"
+if [ -n "$IG_ADMIN_TOKEN" ] || [ -n "$(jq -r '.admin_token // empty' config.json 2>/dev/null)" ]; then
+    # Not echoed: logs/ travels back inside the lab package after the session.
+    echo -e "\033[1;36m[*] ADMIN TOKEN: \033[1;32mset\033[0m\033[1;36m - the console will ask for it\033[0m"
+else
+    echo -e "\033[1;33m[*] ADMIN TOKEN: not set - anyone on the lab subnet can open the console\033[0m"
+fi
 echo -e "\033[1;30m   (Extend the lab, watch the queue and track submissions from there.)\033[0m"
 echo -e "\033[1;36m------------------------------------------------------\033[0m"
 echo -e "\033[1;36m[*] To monitor the server, run: tail -f logs/fastapi.log\033[0m"

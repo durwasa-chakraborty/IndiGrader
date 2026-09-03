@@ -4,6 +4,7 @@
     "start_time": "<DUMMY_START_TIME>",
     "end_time": "<DUMMY_END_TIME>",
     "pwd_end_time": null,
+    "admin_token": null,
     "allowed_subnets": [
         "<DUMMY_SUBNET>"
     ],
