@@ -92,6 +92,57 @@ The same console addresses the visibility gap: countdown, queue depth (including
 tasks prefetched into the worker, which a naive Redis `LLEN` misses), live worker
 activity, in-flight requests, per-student progress, and the violations feed.
 
+The terminal is a first-class path to the same thing. `config.json` is re-read
+whenever its mtime changes, so `nano config.json` over SSH extends the lab without
+a restart and without a browser. A candidate file is validated before it replaces
+anything, so a typo or a half-written save leaves the running configuration alone
+and is reported instead of silently applied.
+
+## What else the investigation turned up
+
+Working through the shutdown and startup paths surfaced three more defects of the
+same family: silent failure discovered by students rather than by the operator.
+None of them caused the L5 incident, all of them could have.
+
+- **`stop.sh` discarded submissions while reporting success.** It polled
+  `redis-cli llen celery` and read 0 as "drained", but Celery prefetches, so the
+  broker list empties within a second of a burst while the worker still holds the
+  work. It then ran `pkill -15 -f celery`, which matches the forked pool children
+  and aborts their in-progress grading. Measured: enqueue 32, run `stop.sh`
+  immediately, 0 graded, 22 returned to the broker, **10 permanently lost**, and
+  the script printed "safe to zip this folder and take it back". After the fix:
+  32 of 32.
+- **`start.sh` claimed success with no broker at all.** It ran
+  `redis-server --daemonize yes`, ignored the result, and printed "All services
+  started successfully!". With Redis absent, every submission then hung ~20s and
+  returned a 500. It now verifies the broker through kombu and exits non-zero.
+- **Pre-flight blamed the wrong thing.** With `jq` missing, the check reported
+  "config.json is missing or contains invalid JSON" about an intact file. Missing
+  `firejail` was not checked at all, and its absence makes every submission score
+  zero, which reads as the students' code being wrong.
+
+## Reducing what has to be installed
+
+The incident happened on a machine an instructor does not administer, so every
+system package is a dependency on someone else's cooperation. Two of the three
+have been removed:
+
+- **Redis** no longer needs `sudo apt install`. `requirements.txt` pulls in
+  `redislite`, which puts a real `redis-server` and `redis-cli` into the
+  virtualenv. The broker is also configurable now (`IG_BROKER_URL`, or
+  `broker_url` in `config.json`), so it can live on another machine entirely.
+- **jq** is gone from all 32 call sites across `start.sh`, `stop.sh`, both copies
+  of `grade.sh`, and the student-facing `submit.sh`, `check.sh` and `ig`. They use
+  `python3`, which has to be present anyway. Students previously needed
+  `sudo apt install jq` on their own machines, which was never documented.
+  `grade.sh` is the file where a subtle change corrupts marks, so its five config
+  reads were proved byte-identical to jq across five config shapes rather than
+  eyeballed.
+- **firejail** stays, and should. It is a setuid binary providing kernel namespace
+  isolation for untrusted student code; no pip package supplies it, and it should
+  not come from PyPI if one did. It is now the single system prerequisite, and
+  `start.sh` warns clearly when it is absent.
+
 ## Action items
 
 | # | Action | Status |
@@ -101,10 +152,14 @@ activity, in-flight requests, per-student progress, and the violations feed.
 | 3 | Live per-question `timeout` / `memory_cap_mb` / `full_marks` tuning | **Done** - `POST /api/admin/questions/{qno}` |
 | 4 | Enforce the PWD extra time the builder had always collected but never written | **Done** - `pwd_end_time` |
 | 5 | Update §7 of the setup guide so the restart dance is no longer the primary advice | **Done** |
-| 9 | Re-read `config.json` when it changes, so a hand edit needs no restart either | **Done** - validated before it replaces anything |
-| 6 | Make the single-late-submission cap configurable, and make its error text name the deadline as the cause | **Open** - unchanged by this work |
-| 7 | Broker outage handling: with Redis down, `/submit` hangs ~20s and returns a 500 | **Open** - pre-existing Celery behaviour; now at least visible on the console |
-| 8 | Document that FastAPI must run single-process (`--workers` would shard the in-memory deadline) | **Done** - `docs/control_room.md` |
+| 6 | Re-read `config.json` when it changes, so a hand edit needs no restart either | **Done** - validated before it replaces anything |
+| 7 | Document that FastAPI must run single-process (`--workers` would shard the in-memory deadline) | **Done** - `docs/control_room.md` |
+| 8 | Stop `stop.sh` discarding queued and in-flight submissions | **Done** - counts broker + running + reserved, shuts down over Celery's control channel |
+| 9 | Stop `start.sh` reporting success when no broker is reachable | **Done** - verifies through kombu, exits non-zero |
+| 10 | Remove the `sudo apt` dependencies an instructor may not be able to satisfy | **Done** - Redis via `redislite`, jq removed entirely; firejail remains by necessity |
+| 11 | Pre-flight checks must name the real problem | **Done** - `jq` and `firejail` checked by name |
+| 12 | Make the single-late-submission cap configurable, and make its error text name the deadline as the cause | **Open** - unchanged by this work |
+| 13 | Broker outage handling: with Redis down, `/submit` hangs ~20s and returns a 500 | **Open** - pre-existing Celery behaviour; now visible on the console and refused at startup |
 
 ## Lessons
 
@@ -116,4 +171,16 @@ activity, in-flight requests, per-student progress, and the violations feed.
   situation, but does not fix the cap itself.
 - **An error message should name the cause the operator can act on.** "You have
   already exhausted your single late submission" is accurate and unactionable;
-  neither the student nor the invigilator could tell it was a clock problem.
+  neither the student nor the invigilator could tell it was a clock problem. The
+  same fault appeared twice more: `start.sh` blaming `config.json` for a missing
+  `jq`, and `stop.sh` announcing "safe to zip this folder" over discarded work.
+- **A success message that is not checked is worse than no message.** Both shell
+  scripts reported success on paths that had already failed. Each now verifies the
+  thing it is claiming, and exits non-zero when it cannot.
+- **Count what is outstanding, not what is convenient to query.** `llen celery`
+  was the easy number to reach for and it is wrong by design, because Celery
+  prefetches. Reserved work is still outstanding work.
+- **Every system package is a dependency on someone else's cooperation.** On a lab
+  machine the instructor does not administer, "just apt install it" may not be
+  available on the day. Redis and jq were both removable; firejail was not, and
+  saying which is which is part of the answer.
