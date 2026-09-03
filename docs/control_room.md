@@ -9,21 +9,39 @@ restart.
 
 ## 1. Getting in
 
-There is no login. The console opens straight from the URL, and **reachability is
-the access control**:
+**Reachability is the first control, and it always applies:**
 
 - **From the server itself** (`127.0.0.1`) — always allowed.
 - **From anywhere else** — the same `allowed_subnets` rule that guards the rest
-  of the server applies, so a machine outside the lab network is refused.
+  of the server, so a machine outside the lab network is refused.
 - **After the lab has ended** — still reachable. Unlike the student endpoints,
   admin routes are exempt from the deadline gate, because that is exactly when
   you need to grant an extension.
 
-This assumes what IndiGrader already assumes everywhere else: a closed lab
-network, with the server in a controlled room. Note that student workstations
-share `allowed_subnets`, so anyone on a lab machine who knows the URL can reach
-the console. If that matters for your deployment, narrow the admin branch in
-`_access_control()` to loopback only and drive it from the server console.
+**An admin token is optional, and adds a second factor on top.** Set one and the
+console asks for it before showing anything; leave it unset and the network rules
+are the only control. Three ways to set it, highest precedence first:
+
+| How | When to use it |
+|---|---|
+| `export IG_ADMIN_TOKEN='…'` before `./start.sh` | Rotating without touching files; never written to `config.json` |
+| `"admin_token": "…"` in `config.json` | The usual case — survives restarts, travels with the package |
+| `builder.py` prompt: *Control Room admin token* | Set it at build time; blank means no token |
+
+The token is **never generated for you** and **never printed to the logs** —
+`logs/` travels back inside the lab package after the session. `builder.py`
+strips it from the student starter kit, so it cannot leak that way. Whitespace or
+an empty string counts as unset. Changing it needs a FastAPI restart, since it is
+read at startup.
+
+**Which should you use?** If the lab server sits in a controlled room and you
+only ever drive the console from it, no token is fine. If you open the console
+from your laptop, remember student workstations are on the same
+`allowed_subnets` — set a token. If you want neither, narrow the admin branch in
+`_access_control()` to loopback only.
+
+In the browser the token is remembered in `localStorage` until you press
+**Lock**, which only appears once a token is in use.
 
 Every change is appended to `admin_actions.csv` (timestamp, source IP, action,
 before → after) and shown in the **Admin actions** panel, so changes are always
@@ -152,7 +170,12 @@ allowed subnets, and a loud warning if `DEBUG = True` left access control off.
 Everything the page does is a plain endpoint, so it also works from `curl` on
 the server — handy if you are on a terminal-only session.
 
+If a token is set, add `-H "X-Admin-Token: $TOKEN"` to each call below (or
+`?token=$TOKEN` on the GETs); without one they work as written.
+
 ```bash
+TOKEN=$(jq -r '.admin_token // empty' config.json)   # empty if you did not set one
+
 # Everything the dashboard shows, in one JSON document
 curl -s localhost:8000/api/admin/overview | jq .lab
 
@@ -175,7 +198,7 @@ curl -s -X POST localhost:8000/api/admin/unbind \
 
 | Endpoint | Method | Purpose |
 |---|---|---|
-| `/api/admin/ping` | GET | liveness check |
+| `/api/admin/ping` | GET | liveness / token check |
 | `/api/admin/overview` | GET | the entire dashboard payload |
 | `/api/admin/config` | GET | current `config.json` as served |
 | `/api/admin/violations?limit=200` | GET | violation log |
@@ -185,6 +208,8 @@ curl -s -X POST localhost:8000/api/admin/unbind \
 | `/api/admin/unbind` | POST | `{"roll": "..."}` |
 
 Run these on the lab server, or from a machine inside `allowed_subnets`.
+When a token is configured it goes in the `X-Admin-Token` header, or as
+`?token=` for GETs.
 
 ---
 

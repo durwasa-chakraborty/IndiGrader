@@ -158,7 +158,9 @@ Your students can fetch the starter kit directly from the server.
 ### The Control Room (recommended)
 Open **`http://<server-ip>:8000/admin`** — the URL is printed by `builder.py` and
 by `start.sh`. It opens from the server itself or from any machine inside
-`allowed_subnets`; there is no separate login.
+`allowed_subnets`. If you set an `admin_token` (at build time, in `config.json`,
+or via `IG_ADMIN_TOKEN`), the console asks for it first; otherwise there is no
+separate login.
 
 From there you can, without restarting anything:
 - **Extend the lab** with `+5 / +10 / +15 / +30` buttons, a free-form `±minutes`
