@@ -1,0 +1,10 @@
+# Keep the build context small and free of student data.
+submissions/
+late_submissions/
+logs/
+statics/*.zip
+*.zip
+registrations.csv
+violations.csv
+admin_actions.csv
+__pycache__/

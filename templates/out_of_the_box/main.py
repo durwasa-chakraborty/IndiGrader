@@ -53,6 +53,13 @@ roll_by_ip = {}
 # server sits in a locked room on a closed lab network.
 ADMIN_TOKEN = None
 
+# Additional subnets trusted on top of config.json's allowed_subnets, supplied by
+# the environment. start.sh sets this only when it runs the lab in a container on
+# a non-Linux host, where Docker rewrites every client's source address to the
+# gateway. It is a development convenience: it means per-student IP binding is not
+# enforced, so it is announced loudly at startup and on the dashboard.
+EXTRA_SUBNETS = [x.strip() for x in os.environ.get("IG_EXTRA_SUBNETS", "").split(",") if x.strip()]
+
 # config.json is re-read whenever its mtime changes, so `nano config.json` on the
 # server takes effect without a restart. A bad edit is rejected and the last good
 # copy keeps serving.
@@ -338,6 +345,12 @@ async def lifespan(app: FastAPI):
     print("  CONTROL ROOM  : http://<this-server>:8000/admin")
     print(f"  LAB WINDOW    : {lab_config['start_time']}  ->  {lab_config['end_time']}")
     print(f"  REACHABLE FROM: loopback + {lab_config.get('allowed_subnets', [])}")
+    if EXTRA_SUBNETS:
+        print("  " + "!" * 58)
+        print(f"  !! IG_EXTRA_SUBNETS is set: also trusting {EXTRA_SUBNETS}")
+        print("  !! Clients behind those addresses share one source IP, so")
+        print("  !! per-student IP binding is NOT enforced. Development only.")
+        print("  " + "!" * 58)
     if ADMIN_TOKEN:
         # Deliberately not echoed: logs/ travels back inside the lab package.
         print("  ADMIN TOKEN   : required (set - not printed)")
@@ -412,7 +425,7 @@ async def _access_control(request: Request, call_next):
                 content={"detail": "Lab has ended. No more submissions allowed."}
             )
 
-    allowed_subnets = lab_config.get("allowed_subnets", ["127.0."])
+    allowed_subnets = list(lab_config.get("allowed_subnets", ["127.0."])) + EXTRA_SUBNETS
     is_safe_ip = False
     if client_ip:
         for subnet in allowed_subnets:
@@ -1267,6 +1280,7 @@ async def admin_overview():
             "disk_free_gb": round(shutil.disk_usage(".").free / 1e9, 2),
             "load_avg": [round(x, 2) for x in os.getloadavg()] if hasattr(os, "getloadavg") else None,
             "debug_mode": DEBUG,
+            "extra_subnets": EXTRA_SUBNETS,
             "config_error": _config_error,
             "config_reloaded_at": _config_reloaded_at.strftime("%H:%M:%S") if _config_reloaded_at else None,
         },

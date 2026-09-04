@@ -12,6 +12,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - [Technical Specifications](docs/tech_specs.md)
 - [Setup Guide](docs/setup_guide.md)
 - [The Control Room (live monitoring & time extensions)](docs/control_room.md)
+- [Running in Docker](docs/docker.md)
 - [COE: L5 lab window outage (2026-09-03)](docs/coe/2026-09-03-L5-lab-window-outage.md)
 - [Student Workflow](docs/student_workflow.md)
 - [Post-Lab & Admin Guide](docs/post_lab_guide.md)

@@ -853,6 +853,9 @@
       (h.config_reloaded_at ? '<span class="sep"></span>config.json reloaded <b>' + esc(h.config_reloaded_at) + '</b>' : '') +
       (h.config_error ? '<span class="sep"></span><span class="bad">config.json rejected: ' + esc(h.config_error) +
                         ' (still running the last good copy)</span>' : '') +
+      (h.extra_subnets && h.extra_subnets.length
+          ? '<span class="sep"></span><span class="bad">DEV NETWORKING: trusting ' + esc(h.extra_subnets.join(', ')) +
+            ' - per-student IP binding is not enforced</span>' : '') +
       (h.debug_mode ? '<span class="sep"></span><span class="bad">DEBUG MODE - access control is off</span>' : '');
   }
 

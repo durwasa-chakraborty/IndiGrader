@@ -138,6 +138,15 @@ have been removed:
   `grade.sh` is the file where a subtle change corrupts marks, so its five config
   reads were proved byte-identical to jq across five config shapes rather than
   eyeballed.
+- **The grading environment itself** is now reproducible. `./start.sh` runs
+  natively on a lab server and falls back to a bundled Docker image when the
+  machine cannot grade (a Mac, or Linux without firejail), so the same command
+  works everywhere and an instructor can rehearse a lab, including real grading
+  verdicts, on their own laptop before the day. Worth recording that Docker's
+  published-port networking rewrites every client address to the gateway, which
+  would silently destroy per-student IP binding; the container therefore uses
+  host networking on Linux, and the fallback mode announces that binding is not
+  enforced.
 - **firejail** stays, and should. It is a setuid binary providing kernel namespace
   isolation for untrusted student code; no pip package supplies it, and it should
   not come from PyPI if one did. It is now the single system prerequisite, and
@@ -160,6 +169,7 @@ have been removed:
 | 11 | Pre-flight checks must name the real problem | **Done** - `jq` and `firejail` checked by name |
 | 12 | Make the single-late-submission cap configurable, and make its error text name the deadline as the cause | **Open** - unchanged by this work |
 | 13 | Broker outage handling: with Redis down, `/submit` hangs ~20s and returns a 500 | **Open** - pre-existing Celery behaviour; now visible on the console and refused at startup |
+| 14 | Make the grading environment reproducible so a lab can be rehearsed off the lab server | **Done** - `./start.sh` falls back to a bundled Docker image |
 
 ## Lessons
 

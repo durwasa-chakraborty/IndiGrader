@@ -35,6 +35,26 @@ json_valid() {  # json_valid <file>
 
 echo -e "\033[1;36m[*] Initiating graceful shutdown of IndiGrader...\033[0m"
 
+# If this lab is running in a container, drain and stop it from the outside.
+if [ -z "$IG_IN_CONTAINER" ] && command -v docker >/dev/null 2>&1; then
+    CONTAINER_NAME="indigrader-$(basename "$PWD" | tr '[:upper:]' '[:lower:]')"
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER_NAME"; then
+        echo -e "\033[1;34m[*] Lab is running in container $CONTAINER_NAME. Draining it first...\033[0m"
+        docker exec "$CONTAINER_NAME" ./stop.sh
+        RC=$?
+        if [ $RC -ne 0 ]; then
+            echo -e "\033[0;31m[-] The in-container shutdown refused to complete. Container left running.\033[0m"
+            echo -e "\033[0;31m    Nothing has been discarded. Investigate, then re-run ./stop.sh\033[0m"
+            exit $RC
+        fi
+        docker stop "$CONTAINER_NAME" >/dev/null && docker rm "$CONTAINER_NAME" >/dev/null
+        echo -e "\033[1;32m[+] Container stopped and removed.\033[0m"
+        echo -e "\033[1;32m[+] Shutdown Complete! It is now safe to zip this folder and take it back.\033[0m"
+        exit 0
+    fi
+fi
+
+
 # 1. Stop FastAPI to prevent new submissions
 echo -e "\033[1;34m[*] Stopping FastAPI Server...\033[0m"
 pkill -f "fastapi run main.py" || pkill -f "uvicorn main:app"

@@ -16,6 +16,11 @@ Ensure the machine where the lab will be hosted has the following installed:
 - Firejail (`sudo apt install firejail`) - the only system package still needed.
   It sandboxes student code, it is a setuid binary, and no pip package can
   supply it. Everything else, including Redis, comes from `requirements.txt`.
+
+  If the machine cannot provide that (your own Mac, or a Linux box without
+  firejail) and Docker is installed, `./start.sh` builds and runs the bundled
+  image instead, with no extra commands. Grading then behaves exactly as it will
+  on the lab server. See [Running in Docker](docker.md).
 - Redis, but **you do not need to install it system-wide**: `requirements.txt`
   pulls in `redislite`, which drops a `redis-server` binary straight into your
   virtualenv. `sudo apt install redis-server` still works if you prefer it, and a

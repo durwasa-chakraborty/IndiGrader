@@ -5,6 +5,93 @@
 
 echo -e "\033[1;36m[*] Starting IndiGrader Server...\033[0m"
 
+# ---------------------------------------------------------------------------
+# Native, or containerised?
+#
+# Grading needs Linux with firejail, GNU time and ulimit -v. When this machine
+# cannot provide that (a Mac, or a Linux box without firejail) and Docker is
+# available, run the whole lab inside the image instead. Identical environment,
+# same ./start.sh. Set IG_NATIVE=1 to force the native path.
+# ---------------------------------------------------------------------------
+IG_PORT="${IG_PORT:-8000}"
+CONTAINER_NAME="indigrader-$(basename "$PWD" | tr '[:upper:]' '[:lower:]')"
+IMAGE_NAME="${IG_IMAGE:-indigrader:local}"
+
+if [ -z "$IG_IN_CONTAINER" ] && [ "$IG_NATIVE" != "1" ]; then
+    WHY=""
+    if [ "$(uname -s)" != "Linux" ]; then
+        WHY="this is $(uname -s), and grading needs Linux"
+    elif ! command -v firejail >/dev/null 2>&1; then
+        WHY="firejail is not installed"
+    fi
+
+    if [ -n "$WHY" ]; then
+        if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+            echo -e "\033[1;33m[*] $WHY.\033[0m"
+            echo -e "\033[1;33m[*] Running the lab in Docker instead, so grading behaves exactly as it will on the lab server.\033[0m"
+
+            if [ ! -f Dockerfile ]; then
+                echo -e "\033[0;31m[-] ERROR: Dockerfile not found in this package.\033[0m"
+                exit 1
+            fi
+            if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
+                echo -e "\033[1;32m[+] Building $IMAGE_NAME (first run only, takes a minute)...\033[0m"
+                docker build -t "$IMAGE_NAME" -f Dockerfile . || exit 1
+            fi
+
+            docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1
+            echo -e "\033[1;32m[+] Starting container $CONTAINER_NAME...\033[0m"
+
+            # Networking matters here. With published ports, Docker rewrites every
+            # client's source address to the gateway, so all students would look
+            # like one IP and per-student binding would be meaningless. On Linux we
+            # use host networking, which preserves real client addresses. Elsewhere
+            # (a developer's Mac) we publish the port and trust the gateway range,
+            # which is fine for a demo and is announced as not production-safe.
+            if [ "$(uname -s)" = "Linux" ]; then
+                docker run -d --name "$CONTAINER_NAME" \
+                    --network host \
+                    -v "$PWD:/lab" \
+                    -w /lab \
+                    "$IMAGE_NAME" >/dev/null || exit 1
+            else
+                echo -e "\033[1;33m[!] Not Linux: publishing port ${IG_PORT} and trusting the Docker gateway.\033[0m"
+                echo -e "\033[1;33m    Per-student IP binding is NOT enforced in this mode. Use it to\033[0m"
+                echo -e "\033[1;33m    develop and demo, never to run a real lab.\033[0m"
+                docker run -d --name "$CONTAINER_NAME" \
+                    -p "${IG_PORT}:8000" \
+                    -e IG_EXTRA_SUBNETS="192.168.65.,172.17.,172.18.,172.19.,10.88." \
+                    -v "$PWD:/lab" \
+                    -w /lab \
+                    "$IMAGE_NAME" >/dev/null || exit 1
+            fi
+
+            echo -e "\033[1;33m[*] Waiting for the server to come up...\033[0m"
+            for i in $(seq 1 60); do
+                if curl -fsS "http://localhost:${IG_PORT}/api/admin/ping" >/dev/null 2>&1; then
+                    echo -e "\033[1;32m[+] All services started successfully!\033[0m"
+                    echo -e "\033[1;36m------------------------------------------------------\033[0m"
+                    echo -e "\033[1;36m[*] CONTROL ROOM: \033[1;33mhttp://localhost:${IG_PORT}/admin\033[0m"
+                    echo -e "\033[1;30m   (running in container $CONTAINER_NAME)\033[0m"
+                    echo -e "\033[1;36m[*] Logs:  docker logs -f $CONTAINER_NAME   (also in logs/)\033[0m"
+                    echo -e "\033[1;33m[-] Stop:  ./stop.sh\033[0m"
+                    echo -e "\033[1;36m------------------------------------------------------\033[0m"
+                    exit 0
+                fi
+                sleep 1
+            done
+            echo -e "\033[0;31m[-] The container did not become healthy in 60s. Last output:\033[0m"
+            docker logs --tail 30 "$CONTAINER_NAME"
+            exit 1
+        else
+            echo -e "\033[1;33m[!] $WHY, and Docker is not available.\033[0m"
+            echo -e "\033[1;33m    Continuing natively: the server and console will work,\033[0m"
+            echo -e "\033[1;33m    but every submission will score zero.\033[0m"
+        fi
+    fi
+fi
+
+
 # Pre-flight Checks
 echo -e "\033[1;34m[*] Running pre-flight checks...\033[0m"
 
